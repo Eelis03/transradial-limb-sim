@@ -7,6 +7,8 @@ identity that holds pointwise, and a nonzero residual can only come from integra
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from tests.conftest import (
@@ -17,6 +19,7 @@ from tests.conftest import (
     truncation_bound,
 )
 from transradial_sim.algorithm.controllers import ConstantDuty
+from transradial_sim.model.finger import joint_origins, point_on_phalanx
 from transradial_sim.model.system import (
     ACCUMULATOR_NAMES,
     IDX_MOTOR_SPEED,
@@ -25,6 +28,7 @@ from transradial_sim.model.system import (
     evaluate_plant,
     initial_state,
     object_energy_residual,
+    state_derivative,
     stored_energy,
 )
 from transradial_sim.pipeline.scenario import (
@@ -172,3 +176,43 @@ def test_initial_state_rejects_the_wrong_number_of_joints() -> None:
     params = build_plant()
     with pytest.raises(ValueError, match="one entry per joint"):
         initial_state(params, (0.1, 0.2))
+
+
+def test_the_gravitational_term_is_the_negative_potential_of_the_masses() -> None:
+    """With gravity on, the stored energy carries the potential of every phalanx.
+
+    Compared against the potential computed from the centres of mass directly, which is a
+    second route to the same quantity, and asserted to vanish when the gravity vector is
+    zero so that the default configuration reports no potential at all.
+    """
+    gravity = (0.0, -9.81)
+    angles = (0.3, 0.5, 0.4)
+    with_gravity = replace(build_plant(), gravity_m_per_s2=gravity)
+    without = build_plant()
+
+    state = initial_state(with_gravity, angles)
+    origins, directions, _ = joint_origins(with_gravity.finger, angles)
+    expected = 0.0
+    for index, phalanx in enumerate(with_gravity.finger.phalanges):
+        com = point_on_phalanx(origins, directions, index, phalanx.com_distance_m)
+        expected -= phalanx.mass_kg * (gravity[0] * com[0] + gravity[1] * com[1])
+
+    assert stored_energy(with_gravity, state).gravitational_j == pytest.approx(
+        expected, rel=1.0e-12
+    )
+    assert expected > 0.0
+    assert stored_energy(without, initial_state(without, angles)).gravitational_j == 0.0
+
+
+def test_the_derivative_helper_returns_the_plant_derivative() -> None:
+    """The integrator entry point and the diagnostic evaluation agree exactly.
+
+    ``state_derivative`` exists so an integrator need not carry the diagnostics, and the
+    two would drift apart silently if one were changed without the other.
+    """
+    params = build_plant(obstacle=LARGE_CYLINDER, contact=STIFF_CONTACT)
+    state = initial_state(params, (0.4, 0.5, 0.6))
+    state[IDX_MOTOR_SPEED] = 120.0
+    assert state_derivative(params, state, 0.7) == evaluate_plant(
+        params, state, 0.7
+    ).derivative

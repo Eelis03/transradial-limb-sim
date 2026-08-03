@@ -136,6 +136,21 @@ def test_control_period_must_be_a_multiple_of_the_step() -> None:
         run_scenario(config, current_controller(params))
 
 
+def test_a_step_longer_than_the_control_period_is_rejected() -> None:
+    """The plant is never advanced past a control instant in a single step.
+
+    A step coarser than the control period would silently turn the zero order hold into
+    something with a different rate, and every bandwidth reported by this project is stated
+    against that rate.
+    """
+    params = build_plant()
+    config = ScenarioConfig(
+        name="coarse step", params=params, duration_s=0.01, step_s=1.0e-3, sample_stride=1
+    )
+    with pytest.raises(ValueError, match="at least one integration step"):
+        run_scenario(config, current_controller(params))
+
+
 def test_derivative_is_finite_everywhere_on_the_reference_plant() -> None:
     """The right hand side stays finite at rest, at speed and past the joint limits."""
     params = build_plant()

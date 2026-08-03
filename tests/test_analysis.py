@@ -13,10 +13,17 @@ from transradial_sim.analysis.energetics import (
     force_chain,
     frictionless_tension_n,
 )
-from transradial_sim.analysis.metrics import closing_time_s, grasp_summary
-from transradial_sim.analysis.sensitivity import relative_spread
+from transradial_sim.analysis.metrics import (
+    closing_time_s,
+    free_running_speeds,
+    grasp_summary,
+    performance_summary,
+    settling_index,
+)
+from transradial_sim.analysis.sensitivity import SensitivityPoint, relative_spread
 from transradial_sim.model.contact import ContactGeometry
 from transradial_sim.model.tendon import capstan_ratio
+from transradial_sim.model.units import rad_s_to_rpm
 from transradial_sim.pipeline.scenario import (
     APPROACH_SPEED_LIMIT_RAD_S,
     FLAT_PLATE,
@@ -24,8 +31,11 @@ from transradial_sim.pipeline.scenario import (
     SMALL_CYLINDER,
     STIFF_CONTACT,
     build_plant,
+    closing_scenario,
     current_controller,
     grasp_controller,
+    grasp_scenario,
+    stall_scenario,
 )
 from transradial_sim.pipeline.simulate import ScenarioConfig, run_scenario
 from transradial_sim.pipeline.trace import SimulationTrace
@@ -292,3 +302,149 @@ def test_relative_spread_rejects_an_empty_sweep() -> None:
     """A spread over no points is an error rather than zero."""
     with pytest.raises(ValueError, match="no points"):
         relative_spread((), "closing_time_s")
+
+
+def _sweep_point(value: float, force_n: float) -> SensitivityPoint:
+    return SensitivityPoint(
+        parameter="friction_coefficient",
+        value=value,
+        closing_time_s=0.36,
+        grasp_force_n=force_n,
+        fingertip_force_n=0.6 * force_n,
+        finger_tension_n=3.2 * force_n,
+        transmission_ratio=0.6,
+        battery_energy_j=3.9,
+        capstan_loss_j=0.28,
+    )
+
+
+def test_relative_spread_is_the_range_over_the_mean() -> None:
+    """The spread is stated relative to the mean so that it reads as a percentage.
+
+    A sweep whose metric never changes has a spread of exactly zero, and one whose mean
+    is zero has no relative spread at all, which is an error rather than an infinity.
+    """
+    points = (_sweep_point(0.0, 60.0), _sweep_point(0.1, 45.0), _sweep_point(0.2, 30.0))
+    assert relative_spread(points, "grasp_force_n") == pytest.approx(30.0 / 45.0)
+    assert relative_spread(points, "closing_time_s") == 0.0
+    with pytest.raises(ValueError, match="mean of"):
+        relative_spread((_sweep_point(0.0, 1.0), _sweep_point(0.1, -1.0)), "grasp_force_n")
+
+
+def test_the_settling_index_is_the_first_quiet_sample_after_the_peak() -> None:
+    """The quasi static operating point is taken where the drive has stopped moving.
+
+    Defined as the first sample after the speed peak at which the speed has fallen below a
+    fraction of that peak, so that a run which never settles still returns a usable index
+    rather than raising.
+    """
+    trace = _grasp("60 mm cylinder", LARGE_CYLINDER)
+    index = settling_index(trace)
+    peak = float(max(abs(value) for value in trace.motor_speed_rad_s))
+    assert 0 < index <= trace.sample_count - 1
+    assert abs(float(trace.motor_speed_rad_s[index])) <= 0.01 * peak
+    # A threshold of one is met at the peak itself, so the index cannot run past it.
+    assert settling_index(trace, 1.0) <= index
+    assert settling_index(trace, 0.0) == trace.sample_count - 1
+
+
+def test_a_free_run_reports_no_grasp_and_no_spread() -> None:
+    """With no object present there is nothing to push against and nothing to distribute."""
+    params = build_plant()
+    config = ScenarioConfig(
+        name="free",
+        params=params,
+        duration_s=0.05,
+        step_s=REFERENCE_STEP_S,
+        sample_stride=10,
+    )
+    trace = run_scenario(config, current_controller(params))
+    settled = grasp_summary(trace)
+    assert settled.contact_points == 0
+    assert settled.total_force_n == 0.0
+    assert settled.fingertip_force_n == 0.0
+    assert settled.force_spread == 0.0
+    assert settled.phalanx_forces_n == (0.0,) * params.finger.joint_count
+
+
+def test_the_headline_summary_combines_the_speed_and_the_force_runs() -> None:
+    """Every field of the headline summary is taken from the run that can measure it.
+
+    Speeds come from the free closing run, because a stalled drive has none, and forces
+    come from the rigid grasp, because a free run applies none. Mixing the two would give
+    a summary no single experiment could produce.
+    """
+    stall = _grasp("60 mm cylinder", LARGE_CYLINDER)
+    params = build_plant()
+    config = ScenarioConfig(
+        name="headline closing",
+        params=params,
+        duration_s=0.20,
+        step_s=1.0e-4,
+        sample_stride=5,
+    )
+    closing = run_scenario(config, current_controller(params))
+    summary = performance_summary(closing, stall)
+    settled = grasp_summary(stall)
+
+    assert summary.peak_motor_speed_rad_s == pytest.approx(
+        float(max(abs(value) for value in closing.motor_speed_rad_s))
+    )
+    assert summary.peak_tendon_speed_m_per_s == pytest.approx(
+        summary.peak_motor_speed_rad_s * params.tendon.drive_radius_m / params.gearbox.ratio
+    )
+    assert summary.stall_finger_tension_n == pytest.approx(settled.finger_tension_n)
+    assert summary.stall_grasp_force_n == pytest.approx(settled.total_force_n)
+    assert summary.peak_motor_speed_rpm < summary.no_load_speed_rpm
+    speed_rad_s, speed_rpm = free_running_speeds(
+        params.motor, params.supply.open_circuit_voltage_v
+    )
+    assert summary.no_load_speed_rpm == pytest.approx(speed_rpm)
+    assert speed_rpm == pytest.approx(rad_s_to_rpm(speed_rad_s))
+
+
+def test_a_trace_reports_its_own_extent_and_rejects_an_unknown_channel() -> None:
+    """The trace is the only interface the analysis layer has, so it guards its names.
+
+    A mistyped accumulator name would otherwise return a neighbouring column and produce a
+    plausible wrong answer, which is the failure mode worth an exception.
+    """
+    trace = _grasp("60 mm cylinder", LARGE_CYLINDER)
+    assert trace.duration_s == pytest.approx(GRASP_DURATION_S, abs=trace.control_period_s)
+    assert trace.sample_count == len(trace.time_s)
+    with pytest.raises(KeyError, match="unknown accumulator"):
+        trace.accumulator("motor_copper_loss")
+    assert trace.final_accumulator("motor_copper_loss_j") > 0.0
+
+
+def test_the_reference_scenarios_are_the_ones_the_readme_reports() -> None:
+    """The three standard scenarios carry the durations and objects the results quote."""
+    closing = closing_scenario()
+    assert closing.params.obstacle is None
+    assert closing.with_step(1.0e-5).step_s == 1.0e-5
+    assert closing.with_step(1.0e-5).params is closing.params
+
+    grasp = grasp_scenario("60 mm cylinder", LARGE_CYLINDER)
+    assert grasp.params.obstacle is LARGE_CYLINDER
+    assert grasp.duration_s == GRASP_DURATION_S
+
+    stall = stall_scenario()
+    assert stall.params.obstacle is LARGE_CYLINDER
+    assert stall.params.contact is STIFF_CONTACT
+    replaced = stall.with_params(closing.params)
+    assert replaced.params is closing.params
+    assert replaced.duration_s == stall.duration_s
+
+
+def test_the_plant_builder_applies_every_override_it_offers() -> None:
+    """Each optional argument reaches the parameter it names and changes nothing else."""
+    plant = build_plant(
+        tendon_stiffness_n_per_m=5.0e3,
+        tendon_friction_coefficient=0.05,
+        current_limit_a=0.5,
+    )
+    assert plant.tendon.stiffness_n_per_m == 5.0e3
+    assert plant.tendon.friction_coefficient == 0.05
+    assert plant.current_limit_a == 0.5
+    assert plant.tendon.routing == build_plant().tendon.routing
+    assert plant.gearbox is build_plant().gearbox

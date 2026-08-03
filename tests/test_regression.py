@@ -91,6 +91,11 @@ def test_reference_grasp_steady_state() -> None:
     The drive has stalled and the contact forces have stopped changing, so these are the
     fixed point of the model rather than a snapshot of a transient. Tolerance is the
     steady state tolerance defined at the top of this module.
+
+    These literals were recorded before the gearhead backlash was modelled and were not
+    changed when it was. The design notes predicted that: the play is taken up once and
+    stays taken up, so it moves the motor angle at which the grasp settles and not the
+    force the grasp settles at. Leaving the numbers alone is the evidence for it.
     """
     trace = _reference_grasp()
     settled = grasp_summary(trace)
@@ -142,6 +147,11 @@ def test_reference_closing_time() -> None:
     The metric is a threshold crossing on a sampled trace, so it is quantised by the sample
     interval. The tolerance is exactly that interval, which is the stride times the control
     period, and not a smaller number that would sit on its own quantisation boundary.
+
+    The pinned value moved from 0.358 s to 0.360 s when the gearhead backlash was modelled,
+    which is the two milliseconds the drive spends winding in the 0.223 mm of play before
+    the cord begins to pull. That delay is what the design notes said backlash would add,
+    and it is the only pinned number the change moved.
     """
     params = build_plant()
     config = ScenarioConfig(
@@ -153,7 +163,7 @@ def test_reference_closing_time() -> None:
     )
     trace = run_scenario(config, current_controller(params))
     sample_interval_s = SAMPLE_STRIDE * trace.control_period_s
-    assert closing_time_s(trace) == pytest.approx(0.358, abs=sample_interval_s)
+    assert closing_time_s(trace) == pytest.approx(0.360, abs=sample_interval_s)
     assert float(trace.motor_speed_rad_s.max()) == pytest.approx(923.32, rel=1.0e-3)
 
 

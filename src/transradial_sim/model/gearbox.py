@@ -22,10 +22,17 @@ takes whatever value inside its capacity cancels the net driving torque, so a st
 drive holds instead of creeping. Without it a regularised sign function returns zero
 friction at zero speed, the drive keeps turning, and the tendon tension climbs towards the
 frictionless limit, which for this transmission is nearly three times the correct value.
+
+The gearhead also has angular play, which the catalogue quotes as an average no load
+backlash at the output. It is carried here, because it is a property of the gearhead, and
+it is applied where it is felt, as a dead band on the tendon extension.
+:func:`lost_motion_m` converts it into the cord travel it costs at a given drive pulley
+radius.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Final
 
@@ -35,6 +42,7 @@ __all__ = [
     "MAXON_GP26B_84",
     "GearboxParameters",
     "loss_torque_on_motor",
+    "lost_motion_m",
     "reflected_load_torque",
 ]
 
@@ -64,6 +72,15 @@ class GearboxParameters:
     part_number: str
     """Manufacturer order number."""
 
+    backlash_rad: float = 0.0
+    """Angular play at the gearbox output, in rad.
+
+    The catalogue quotes this as the average backlash measured at no load, which is the
+    total angle the output turns through before the teeth take up on the other flank. Zero
+    describes an ideal gearhead and is the default so that a test can isolate the effect
+    by removing it.
+    """
+
     speed_regularisation_rad_s: float = 0.02
     """Speed scale of the sliding branch, in rad/s.
 
@@ -88,6 +105,8 @@ class GearboxParameters:
             raise ValueError("ratio must be strictly positive")
         if not 0.0 < self.efficiency <= 1.0:
             raise ValueError("efficiency must lie in (0, 1]")
+        if self.backlash_rad < 0.0:
+            raise ValueError("backlash_rad must be non negative")
 
 
 MAXON_GP26B_84: Final[GearboxParameters] = GearboxParameters(
@@ -98,13 +117,32 @@ MAXON_GP26B_84: Final[GearboxParameters] = GearboxParameters(
     max_intermittent_output_torque_nm=1.9,
     max_input_speed_rad_s=rpm_to_rad_s(8000.0),
     part_number="maxon GP 26 B, order number 144039",
+    backlash_rad=math.radians(1.6),
 )
 """maxon planetary gearhead GP 26 B, 26 mm, three stages, 84:1.
 
 Catalogue values: reduction 84:1, three stages, maximum efficiency 59 percent, maximum
 continuous output torque 1.3 Nm, intermittently permissible output torque 1.9 Nm, mass
-inertia 0.4 g cm^2 referred to the motor shaft, recommended maximum input speed 8000 rpm.
+inertia 0.4 g cm^2 referred to the motor shaft, recommended maximum input speed 8000 rpm,
+average backlash at no load 1.6 degrees at the output.
 """
+
+
+def lost_motion_m(gearbox: GearboxParameters, drive_radius_m: float) -> float:
+    """Return the cord travel the gearbox play costs at a given pulley radius, in m.
+
+    The backlash is an angle at the gearbox output, and the drive pulley sits on that
+    output, so the cord has to be wound in by the arc the play subtends before the tendon
+    can begin to stretch.
+
+    Args:
+        gearbox: Gearbox parameters.
+        drive_radius_m: Radius of the drive pulley on the gearbox output, in m.
+
+    Returns:
+        The dead band width referred to the cord, in m.
+    """
+    return gearbox.backlash_rad * drive_radius_m
 
 
 def reflected_load_torque(gearbox: GearboxParameters, output_torque_nm: float) -> float:

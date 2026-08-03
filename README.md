@@ -6,78 +6,290 @@ Physics simulation of transradial prosthesis actuation with tendon and motor mod
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Overview
+![Where one grasp spends 3.9568 J of battery energy: the motor winding takes 54.77 percent as resistive heat, the bridge 12.63 percent, the gearbox 12.28 percent and the routing 7.13 percent, while the work delivered to the object is 0.18 percent and its bar is too short to see](docs/figures/energy-breakdown.png)
 
-This library simulates the complete actuation path of one finger of a tendon driven
-transradial prosthesis, from a lithium ion battery through a bridge, a brushed direct
-current motor, a planetary gearbox and a routed tendon to the force the fingertip applies
-to a grasped object. It reports where the energy goes at every stage, how the underactuated
-finger conforms to different object shapes, and how the achievable closing time, grasp force
-and control bandwidth depend on the tendon compliance and the routing friction.
+A tendon driven prosthetic finger is a chain, and this project follows the power along it.
+Current goes in at a six cell battery and force comes out at a fingertip, and in between sit
+an H bridge, a brushed motor, a three stage planetary gearhead, a drive pulley and a steel
+cord routed over four guides. Every link takes a share, and the model computes each share
+from published component data rather than from measurement, so a drive train can be judged
+before anyone builds it.
 
-It is written for someone sizing or reviewing a prosthetic hand drive train who needs to
-know whether a chosen motor and gearbox will deliver a usable grasp force, how much of the
-battery charge a grasp costs, and which component in the chain is the one worth improving.
+Two answers come out of the same chain and they are not the same answer. Of the torque
+leaving the motor shaft, 34.86 percent reaches the finger as tendon tension, and that is the
+number a hand is sized against. Of the energy leaving the battery, 0.18 percent reaches the
+object as work, and that is why a hand which is holding something still gets warm. The figure
+above is the second answer.
 
-## Problem
+It is written for someone sizing or reviewing a prosthetic hand drive train who needs to know
+whether a chosen motor and gearbox will deliver a usable grasp force, what a grasp costs the
+battery, and which link is the one worth improving.
 
-A tendon driven prosthetic hand has to close in under a second, hold tens of newtons at the
-fingertip, conform to whatever shape it meets with one motor per finger, and run all day on
-a battery small enough to wear. Those requirements pull against each other through a
-transmission whose losses are not obvious.
+## Results
 
-Three properties of that transmission set the answer and none of them can be captured by a
-gear ratio alone.
+Every measured number on this page is printed by the script named under its heading. The
+rest are configuration constants from `pipeline/scenario.py` or bounds the test suite
+asserts, and they are named as such where they appear. Nothing here is quoted from memory.
 
-A tendon pulls and cannot push, so the finger needs return springs, the drive can lose the
-object by backing off, and any stretch put into the cord by an impact stays there.
+They all describe one reference configuration: a maxon RE 25 118752 driving a maxon GP 26 B
+at 84:1 into an 8 mm drive pulley, a stainless steel tendon of 2.0e4 N/m series stiffness
+routed over 3.50 rad of total wrap at a measured friction coefficient of 0.147, an index
+finger of 45, 28 and 22 mm phalanges, and a 22.2 V six cell pack. The integration step is
+5e-5 s except where stated and the controller runs at 10 kHz.
 
-Where the tendon runs over a guide it loses tension exponentially in the wrap angle, so the
-loss is multiplicative and cannot be reduced by pulling harder. For a routing typical of a
-forearm mounted drive this removes more of the actuation force than the gearbox does.
+### Before the first link: does the motor model reproduce its own catalogue?
 
-One motor drives three joints, so the posture the finger settles into is not commanded. It
-is the solution of a force balance between the tendon, the return springs and the contact,
-and it is different for every object.
+From `uv run python examples/motor_datasheet_check.py`. The model is built from four
+catalogue numbers, the terminal resistance, the inductance, the torque constant and the rotor
+inertia, and is then asked for five operating points it was not given.
 
-The problem this project solves is to predict, from published component data rather than
-from measurement, the fingertip force, the closing time and the energy cost of a grasp, and
-to say how confident those predictions are given that the tendon stiffness and the routing
-friction of a hand that does not yet exist are not known.
+| Quantity | Model | Catalogue | Error |
+| --- | --- | --- | --- |
+| No load speed, rpm | 9759 | 9560 | +2.08% |
+| No load current, mA | 37.4 | 36.9 | +1.35% |
+| Stall torque, mNm | 241.8 | 243 | -0.51% |
+| Stall current, A | 10.34 | 10.4 | -0.53% |
+| Speed constant, rpm/V | 408.1 | 408 | +0.02% |
 
-## Approach
+The speed constant is the one that matters most, because the catalogue publishes it
+independently of the torque constant. Agreement to 0.02 percent says the conversion from
+mNm/A and rpm/V into SI is right, which is the error that would otherwise produce a self
+consistent but wrong model. The 2.08 percent on no load speed is the catalogue disagreeing
+with itself: the speed implied by its own listed torque constant and terminal resistance
+differs from its own listed no load speed by that much.
 
-The plant is a coupled electromechanical model integrated as one system. The motor is the
-standard two state lumped brushed machine, an armature resistance and inductance in series
-with a back electromotive force, driving a rotor inertia against viscous and Coulomb
-friction. Its parameters are the catalogue values of the maxon RE 25, order number 118752,
-and the model is checked by asking it to reproduce catalogue operating points it was not
-given. The gearbox is the maxon GP 26 B at 84:1, and its catalogue efficiency enters as a
-load dependent Coulomb loss with a Karnopp stick band, so that a stalled drive holds rather
-than creeping.
+The same script reads out the two gearhead numbers the rest of this page leans on: the
+current at its continuous torque rating, 1.121 A, and its average no load backlash of
+1.6 degrees at the output, which on the 8 mm drive pulley is 0.223 mm of lost cord travel.
 
-The tendon is a stainless steel rope in a metal routing, carrying a lumped series
-compliance, a hard clamp at zero tension, and capstan friction over the total wrap angle of
-the routing, following the Euler-Eytelwein relation. The rope construction is specified to
-match the one on which the friction coefficient used here was measured, rather than assuming
-a coefficient for a polymer cord, for which no directly measured value is published.
+### Link by link, from 1.121 A to 96.0 N
 
-The finger is a planar three phalanx serial chain with full rigid body dynamics, a return
-spring and an end stop at each joint, and a single tendon acting through a moment arm at
-each joint. Contact with the grasped object uses the Hunt and Crossley law. The whole system
-is advanced by a fixed step fourth order Runge-Kutta scheme under a zero order hold
-controller running at 10 kHz, in a cascade of a current regulator placed by pole assignment
-on the armature and an outer position or force loop.
+From `uv run python examples/efficiency_chain.py`. This is the quasi static calculation, the
+one an engineer does by hand.
 
-Every power term in the model is written so that it is individually signed correctly, which
-makes the energy balance an identity that holds at every instant rather than on average.
-Integrating the loss channels alongside the physical states then turns the balance residual
-into a direct measure of integration error, and it is reported next to every energy result.
+Start at the current. It is 1.121 A, and it is not chosen: it is the current at which the
+gearhead reaches its catalogue continuous output torque of 1.3 Nm, and it sits below the
+motor's own continuous rating of 1.16 A. The gearbox sets the usable current, not the motor.
 
-The alternatives that were considered and rejected, including an adaptive stiff solver,
-kinematic coupling between the joints, and a bristle friction model, are recorded in
-[docs/design-notes.md](docs/design-notes.md) together with what each would have cost and
-bought.
+At the catalogue torque constant of 23.4 mNm/A that current is 26.23 mNm of air gap torque.
+The brushes and the bearings take 0.30 mNm of it as Coulomb friction, so 25.93 mNm leaves the
+shaft, an efficiency of 0.9885. Nothing worth attacking has happened yet.
+
+The gearhead multiplies torque by 84 and keeps 59 percent of it, giving 1.285 Nm at the
+output. That 0.5900 is a catalogue number and not an assumption, and it is the single largest
+loss in the chain.
+
+On the 8 mm drive pulley 1.285 Nm is 160.6 N of cord tension. The cord then runs from the
+forearm shell over four guides to the fingertip, 3.50 rad of wrap in total. Capstan friction
+at the measured coefficient of 0.147 leaves `exp(-0.147 * 3.50) = 0.5978` of the tension, so
+96.0 N arrives at the finger.
+
+| Stage | Output | Stage efficiency | What takes the loss |
+| --- | --- | --- | --- |
+| Battery and bridge | 1.121 A | 1.0000 | current limited by the gearbox torque rating |
+| Motor electromagnetic | 26.23 mNm | 1.0000 | torque constant, catalogue |
+| Motor brush and bearing friction | 25.93 mNm | 0.9885 | Coulomb share of the no load torque |
+| Gearbox, 84:1, three stage | 1.285 Nm | 0.5900 | gear tooth friction, catalogue |
+| Drive pulley, 8 mm | 160.6 N | 1.0000 | kinematic, nothing lost here |
+| Capstan friction, 3.50 rad of wrap | 96.0 N | 0.5978 | cord sliding on the routing guides |
+| Product, motor shaft to finger | | 0.3486 | |
+
+Two thirds of the actuation effort disappears between the motor shaft and the finger, and the
+routing takes slightly more of it than the gearbox does. The difference between the two losses
+is that the gearbox can be swapped and the routing cannot be out muscled: capstan loss is
+multiplicative in the tension, so pulling harder does not recover any of it.
+
+### The same chain counted in joules
+
+From the same script. The energy budget below is measured over a complete 1.7 s grasp of a
+rigid 60 mm cylinder, integrating every loss channel alongside the physical states. It is the
+figure at the top of this page, in numbers.
+
+| Destination | Energy, J | Share |
+| --- | --- | --- |
+| Motor copper loss, i squared R | 2.1672 | 54.77% |
+| Bridge conduction and quiescent draw | 0.4997 | 12.63% |
+| Gearbox tooth friction | 0.4859 | 12.28% |
+| Still stored in springs and cord at the end | 0.4019 | 10.16% |
+| Capstan friction in the routing | 0.2821 | 7.13% |
+| Motor brush and bearing friction | 0.0979 | 2.48% |
+| Joint damping | 0.0098 | 0.25% |
+| Work delivered to the object | 0.0072 | 0.18% |
+| Battery internal resistance | 0.0054 | 0.14% |
+| Tendon viscoelastic damping | 0.0003 | 0.01% |
+| Joint end stops | 0.0000 | 0.00% |
+| Total drawn from the battery | 3.9568 | 100% |
+| Balance residual | -6.123e-04 | 0.0155% |
+
+The ranking is not the force ranking. In force the routing and the gearbox are the two big
+losses; in energy the winding is, because a stalled grasp draws full current and produces no
+mechanical power at all. Over the run the winding turns 2.1672 J into heat and the object
+receives 0.0072 J. The place to attack that is a non backdrivable transmission or a
+mechanical latch, not a better motor: no change to the gearbox or the routing touches a loss
+that exists because the drive is standing still.
+
+The 10.16 percent still stored is elastic energy in the return springs and the stretched cord,
+which comes back when the grasp is released rather than being lost.
+
+The last row is the reason to believe the rest. Every power term in the plant is written so
+that it is individually signed correctly, which makes
+
+    battery power = sum of loss powers + rate of change of stored energy + power into the object
+
+an identity that holds at every instant, not on average. The accumulators are integrated with
+the same scheme as the physical states, so the closure error of the integrated balance is a
+measure of integration error and nothing else. It is 0.0155 percent of the energy drawn, and
+it falls with the step at the order of the scheme. A loss channel with a wrong sign, a
+double counted term or a missing one would show up here as a residual thousands of times
+larger.
+
+### What actually arrives, and why it is more than the chain says
+
+From `uv run python examples/fingertip_force_curve.py`.
+
+![Tendon tension at each end of the routing through one grasp: the drive climbs to 207.6 N and the finger to 124.1 N, both settling above the dashed quasi static chain values of 160.6 N and 96.0 N](docs/figures/tendon-tension.png)
+
+The figure is the reference grasp, the same run the energy budget above was measured on. The
+gap between the two curves is the capstan loss, and it is a fixed ratio rather than a fixed
+number of newtons, which is what the exponential law says it should be. The gap between each
+curve and its dashed line is something else.
+
+| Current, A | Chain, N | Measured, N | Lossless, N | Grasp force, N | Fingertip force, N |
+| --- | --- | --- | --- | --- | --- |
+| 0.4484 | 37.74 | 57.20 | 107.00 | 17.25 | 10.41 |
+| 0.6726 | 57.17 | 58.31 | 162.08 | 17.59 | 10.62 |
+| 0.8968 | 76.59 | 95.88 | 217.17 | 29.36 | 17.73 |
+| 1.1210 | 96.02 | 124.12 | 272.25 | 38.29 | 23.09 |
+
+The chain column applies the gearbox and capstan losses in full and the lossless column
+removes both, so the two bracket what the drive can possibly produce. The measured tension has
+to lie between them, and it does at every current.
+
+It sits above the chain value, and that is physics rather than error. The finger arrives at
+the object carrying the kinetic energy of the rotor, the impact stretches the cord, and
+neither the cord nor the stuck gearbox can push that stretch back out, because a tendon does
+not push and a three stage gearhead at 59 percent efficiency does not back drive. At the
+400 rad/s closing speed limit the rotor holds 0.09 J, and a cord that absorbed all of it
+would gain 59.9 N of tension. That is the bound the test suite asserts, and the measured
+124.12 N against the chain's 96.02 N sits well inside it.
+
+The measured grasp force rises at 31.29 N per ampere, against the 144.96 N per ampere of
+tendon tension the transmission puts at the drive pulley. Everything between those two
+numbers is the routing loss and the geometry of whatever posture the finger settles into.
+
+### One actuator, three shapes
+
+From `uv run python examples/grasp_adaptivity.py`. The controller is identical in all three
+runs and knows nothing about the object.
+
+![Settled finger posture on a flat plate, a 60 mm cylinder and a 40 mm cylinder, drawn to one scale: the finger wraps each shape differently, from 9, 101, 81 degrees on the plate to 59, 100, 80 degrees on the small cylinder](docs/figures/grasp-postures.png)
+
+| Object | Proximal, N | Middle, N | Distal, N | Total, N | Contact points | Settled posture, deg |
+| --- | --- | --- | --- | --- | --- | --- |
+| Flat plate | 0.00 | 15.80 | 17.13 | 32.93 | 4 | 9.1, 101.1, 80.7 |
+| 60 mm cylinder | 12.22 | 6.00 | 20.78 | 39.00 | 7 | 25.0, 37.3, 80.1 |
+| 40 mm cylinder | 47.63 | 13.19 | 10.02 | 70.84 | 7 | 58.8, 100.3, 80.4 |
+
+The tendon tension at the finger is 120.4, 122.6 and 120.2 N across the three, a spread of
+1.9 percent. One actuator sets one scalar, and it sets nearly the same scalar every time.
+What the mechanism varies is how that scalar is shared out: the proximal phalanx carries
+nothing at all on the flat plate and 67 percent of the total on the small cylinder.
+
+The postures differ by 38.0 degrees root mean square between the flat plate and the 60 mm
+cylinder, 28.7 between the flat plate and the 40 mm cylinder, and 41.3 between the two
+cylinders. A finger with a fixed ratio between its joints, which is how underactuated hands
+are often modelled, would draw the same outline three times and return three identical rows.
+Nothing in the code chooses this behaviour: it is what the force balance between the tendon,
+the return springs and the contact produces.
+
+### How fast it closes, and what a loop can do with it
+
+From `uv run python examples/finger_closing.py` and
+`uv run python examples/force_control.py`.
+
+| Metric | Value |
+| --- | --- |
+| Closing time to 95 percent of travel, current limited | 0.360 s |
+| Peak motor speed while closing | 8817 rpm |
+| Motor no load speed at 22.2 V | 9026 rpm |
+| Peak tendon speed | 87.9 mm/s |
+| Peak fingertip speed | 765 mm/s |
+| Battery energy for one free closure | 4.150 J |
+| Stall tendon tension at the drive | 207.6 N |
+| Stall tendon tension at the finger | 124.1 N |
+| Stall grasp force, summed over the finger | 38.3 N |
+| Stall fingertip force, distal phalanx | 23.1 N |
+
+Free closing is speed limited rather than force limited: the finger reaches 8817 rpm against
+a no load speed of 9026 rpm at this supply, so the drive spends the closure near its back
+electromotive force limit and not near its torque limit. That is why the closing time barely
+moves when the transmission parameters do, which the sweep below shows.
+
+The grasp runs above do not close this fast, and deliberately so. They hold the drive to a
+400 rad/s closing speed limit and only raise the current to squeeze after one second, because
+a finger that arrives at full speed carries enough rotor kinetic energy to set the grasp
+force by impact rather than by command.
+
+The armature corner frequency is 1551 Hz, the current loop is placed at 500 Hz by pole
+assignment on the armature, and the controller samples at 10 kHz. Everything an outer loop
+can do has to fit inside that.
+
+| Loop | Target | Settled | Error | Overshoot | Time to 90 percent |
+| --- | --- | --- | --- | --- | --- |
+| Motor position | 250.0 rad | 252.24 rad | +0.90% | 32.4% | 0.307 s |
+| Fingertip force | 4.0 N | 3.24 N | -0.76 N | to 8.06 N peak | 0.629 s |
+| Fingertip force | 8.0 N | 9.40 N | +1.40 N | to 9.75 N peak | 0.488 s |
+| Fingertip force | 12.0 N | 11.87 N | -0.13 N | to 12.35 N peak | 0.575 s |
+
+The force loop runs an integral gain of 0.05 A per newton second, three orders of magnitude
+below what a rigid actuator would allow. Two things bound it: the current loop underneath,
+and the series compliance of the tendon, which puts a lightly damped mode between the motor
+and the fingertip. The rise times contain the approach as well, because no force exists at
+all until the finger arrives.
+
+The 0.76 N shortfall at the 4 N set point is the largest error of the three and it belongs to
+the smallest set point, which is what a fixed dead zone does. The model carries the 0.223 mm
+of gearhead play listed above, and a loop has to wind that out of the transmission before it
+can trim anything, so the same absolute penalty costs a larger fraction of a smaller command.
+
+### The two numbers nobody has measured
+
+From `uv run python examples/sensitivity_study.py`. The tendon series stiffness and the
+capstan friction coefficient of a hand that does not yet exist are not known, so every number
+above is only as firm as the range those two are allowed to take.
+
+Tendon series stiffness, swept over a factor of forty:
+
+| Stiffness, N/m | Closing time, s | Grasp force, N | Fingertip force, N | Tendon tension, N | Capstan loss, J |
+| --- | --- | --- | --- | --- | --- |
+| 5 000 | 0.370 | 33.73 | 20.35 | 109.72 | 0.8309 |
+| 10 000 | 0.364 | 35.62 | 21.49 | 115.68 | 0.4718 |
+| 20 000 | 0.360 | 38.29 | 23.09 | 124.12 | 0.2821 |
+| 50 000 | 0.360 | 37.07 | 22.36 | 120.28 | 0.1216 |
+| 200 000 | 0.360 | 32.25 | 19.47 | 105.05 | 0.0458 |
+
+Capstan friction coefficient:
+
+| Coefficient | Closing time, s | Grasp force, N | Fingertip force, N | Tendon tension, N | Transmission ratio |
+| --- | --- | --- | --- | --- | --- |
+| 0.000 | 0.362 | 61.52 | 36.95 | 196.72 | 1.000 |
+| 0.050 | 0.362 | 52.30 | 31.46 | 168.04 | 0.839 |
+| 0.100 | 0.362 | 44.49 | 26.80 | 143.61 | 0.705 |
+| 0.147 | 0.360 | 38.29 | 23.09 | 124.12 | 0.598 |
+| 0.200 | 0.360 | 32.41 | 19.56 | 105.55 | 0.497 |
+
+Closing time is insensitive to both, moving 2.8 percent across a fortyfold change of
+stiffness and 0.6 percent across the friction sweep, for the reason given above: free closing
+is speed limited. Grasp force is insensitive to stiffness, moving 17.1 percent with no
+monotone trend, and strongly sensitive to friction, moving 63.6 percent. At the reference
+coefficient the routing alone removes 36.9 percent of the tendon tension that would otherwise
+reach the finger.
+
+That is the engineering conclusion of the whole page. The routing is the first thing to
+improve. Taking the friction coefficient from 0.147 to 0.05, which is what a low friction
+liner or rolling element idlers would give, raises the grasp force from 38.3 N to 52.3 N at
+the same current, in the same package, on the same motor. No change of motor at that size
+would match it.
 
 ## Installation
 
@@ -93,11 +305,14 @@ Using pip instead of uv:
 
 ```bash
 python -m venv .venv
-.venv/bin/activate      # Windows: .venv\Scripts\activate
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-## Usage
+## Running it
+
+The library is a set of pure functions over parameter dataclasses. The quasi static chain
+takes one line:
 
 ```python
 from transradial_sim.analysis.energetics import force_chain
@@ -121,272 +336,114 @@ capstan friction in the routing        96.02 N   0.5978
 tendon tension at the finger: 96.0 N
 ```
 
-Runnable examples live in `examples/`:
+Each script in `examples/` produces one section of the results above:
 
 ```bash
 uv run python examples/motor_datasheet_check.py
-uv run python examples/finger_closing.py
-uv run python examples/grasp_adaptivity.py
 uv run python examples/efficiency_chain.py
 uv run python examples/fingertip_force_curve.py
+uv run python examples/grasp_adaptivity.py
+uv run python examples/finger_closing.py
 uv run python examples/force_control.py
 uv run python examples/sensitivity_study.py
 ```
 
-Every example accepts `--quick`, which shortens the runs for smoke testing, and
-`--no-figures`, which suppresses figure output. Figures are written to `outputs/`, which is
-not tracked.
+Every one of them accepts `--quick`, which shortens the runs for smoke testing, and
+`--no-figures`, which suppresses figure output. Their scratch figures go to `outputs/`,
+which is not tracked.
 
-## Results
+The three figures on this page are tracked, in `docs/figures/`, and one command rebuilds
+all three:
 
-All numbers below are produced by the commands shown above, on the reference configuration:
-a maxon RE 25 118752 driving a maxon GP 26 B 84:1 into an 8 mm drive pulley, a tendon of
-2.0e4 N/m series stiffness routed over 3.50 rad of total wrap with a measured friction
-coefficient of 0.147, an index finger of 45, 28 and 22 mm phalanges, and a 22.2 V six cell
-battery. The integration step is 5e-5 s except where stated and the controller runs at
-10 kHz.
+```bash
+uv run python examples/publish_figures.py
+```
 
-### Motor model against the manufacturer catalogue
+They are snapshots, refreshed deliberately when a result moves. The continuous integration
+workflow does not compare them byte for byte, because matplotlib output is not byte
+reproducible across platforms or releases, and a check that failed on a font hinting
+difference would train everyone to ignore it. What the workflow does check is that the
+figure builders still assemble each figure from the data they are handed, which is what
+`tests/test_figures.py` asserts.
 
-From `uv run python examples/motor_datasheet_check.py`. The model is built from the
-catalogue terminal resistance, inductance, torque constant and rotor inertia, and is then
-asked to reproduce five operating points it was not given.
+## How it is built
 
-| Quantity | Model | Catalogue | Error |
-| --- | --- | --- | --- |
-| No load speed, rpm | 9759 | 9560 | +2.08% |
-| No load current, mA | 37.4 | 36.9 | +1.35% |
-| Stall torque, mNm | 241.8 | 243 | -0.51% |
-| Stall current, A | 10.34 | 10.4 | -0.53% |
-| Speed constant, rpm/V | 408.1 | 408 | +0.02% |
+The plant is one coupled electromechanical system integrated as a whole: armature current,
+motor shaft angle and speed, three joint angles and their rates, and twelve energy
+accumulators, advanced by a fixed step fourth order Runge-Kutta scheme under a zero order
+hold controller. The choices behind that, and the alternatives rejected on the way, including
+an adaptive stiff solver, kinematic coupling between the joints and a bristle friction model,
+are in [docs/design-notes.md](docs/design-notes.md) together with what each would have cost
+and bought.
 
-The speed constant agrees to 0.02 percent, which confirms that the conversion of the torque
-constant from mNm/A into SI is right, since the catalogue publishes the two independently.
-The 2.08 percent on no load speed is the catalogue's own internal inconsistency: the speed
-implied by its listed torque constant and terminal resistance differs from its listed no
-load speed by that amount.
-
-The usable drive current is 1.121 A. It is not chosen. It is the current at which the
-gearbox reaches its catalogue continuous output torque of 1.3 Nm, and it sits below the
-motor's own continuous rating of 1.16 A. The gearbox, not the motor, sets the limit.
-
-### The efficiency chain from battery to fingertip
-
-From `uv run python examples/efficiency_chain.py`. This is the quasi static calculation, one
-stage at a time, at the drive current limit.
-
-| Stage | Output | Stage efficiency | Loss mechanism |
-| --- | --- | --- | --- |
-| Battery and bridge | 1.121 A | 1.0000 | current limited by the gearbox torque rating |
-| Motor electromagnetic | 26.23 mNm | 1.0000 | torque constant, catalogue |
-| Motor brush and bearing friction | 25.93 mNm | 0.9885 | Coulomb share of the no load torque |
-| Gearbox, 84:1 three stage | 1.285 Nm | 0.5900 | gear tooth friction, catalogue |
-| Drive pulley, 8 mm | 160.6 N | 1.0000 | kinematic |
-| Capstan friction, 3.50 rad wrap | 96.0 N | 0.5978 | cord sliding on the routing guides |
-| Product, motor shaft to finger | | 0.3486 | |
-
-Two thirds of the actuation effort is lost between the motor shaft and the finger, and the
-routing loses slightly more of it than the gearbox does. Only 34.9 percent of the shaft
-torque reaches the cord that pulls the finger.
-
-The measured energy budget for one complete grasp of a rigid 60 mm cylinder, integrated over
-the whole 1.7 s run, is below. This is where the battery charge goes, not where the force
-goes, so the shares are different.
-
-| Destination | Energy, J | Share |
-| --- | --- | --- |
-| Motor copper loss, i squared R | 2.1689 | 54.81% |
-| Bridge conduction and quiescent draw | 0.4998 | 12.63% |
-| Gearbox tooth friction | 0.4858 | 12.28% |
-| Capstan friction in the routing | 0.2820 | 7.13% |
-| Motor brush and bearing friction | 0.0967 | 2.44% |
-| Joint damping | 0.0097 | 0.24% |
-| Battery internal resistance | 0.0054 | 0.14% |
-| Tendon viscoelastic damping | 0.0003 | 0.01% |
-| Joint end stops | 0.0000 | 0.00% |
-| Work delivered to the object | 0.0072 | 0.18% |
-| Still stored in springs and cord at the end | 0.4019 | 10.16% |
-| Total drawn from the battery | 3.9570 | 100% |
-| Balance residual | -6.19e-04 | 0.0156% |
-
-The dominant loss is resistive heating in the motor winding, because a stalled grasp draws
-full current and produces no mechanical power. That is the central engineering conclusion of
-the loss table: a hand that holds a grasp electrically burns 1.3 W doing nothing, and the
-place to attack it is a non backdrivable transmission or a mechanical latch, not a better
-motor. The 10.16 percent still stored is the energy in the return springs and the stretched
-cord, which is returned when the grasp is released.
-
-The balance residual of 0.0156 percent is the integration error alone. The identity it
-tests holds exactly in the continuous model, and the residual falls with the step as the
-scheme's order requires.
-
-### Fingertip force, closing time, no load speed and stall force
-
-From `examples/finger_closing.py` and `examples/fingertip_force_curve.py`.
-
-| Metric | Value |
-| --- | --- |
-| Closing time to 95 percent of travel, current limited | 0.358 s |
-| Closing time with the drive closing speed limit in force | 0.80 s |
-| Peak motor speed while closing | 8817 rpm |
-| Motor no load speed at 22.2 V | 9026 rpm |
-| Peak tendon speed | 87.9 mm/s |
-| Peak fingertip speed | 766 mm/s |
-| Battery energy for one free closure | 4.155 J |
-| Stall tendon tension at the drive | 207.6 N |
-| Stall tendon tension at the finger | 124.1 N |
-| Stall grasp force, summed over the finger | 38.3 N |
-| Stall fingertip force, distal phalanx | 23.1 N |
-
-Fingertip force against motor current, measured on a rigid 60 mm cylinder. The sliding
-column is the quasi static chain with the gearbox and capstan losses fully applied. The
-lossless column is the same chain with both removed. The measured tension must lie between
-them and does.
-
-| Current, A | Sliding, N | Measured, N | Lossless, N | Grasp force, N | Fingertip force, N |
-| --- | --- | --- | --- | --- | --- |
-| 0.4484 | 37.74 | 57.20 | 107.00 | 17.25 | 10.41 |
-| 0.6726 | 57.17 | 58.31 | 162.08 | 17.59 | 10.62 |
-| 0.8968 | 76.59 | 95.88 | 217.17 | 29.36 | 17.73 |
-| 1.1210 | 96.02 | 124.12 | 272.25 | 38.29 | 23.09 |
-
-Grasp force rises at 31.3 N per ampere. The measured tension sits above the quasi static
-value because the finger arrives at the object carrying the rotor's kinetic energy, the
-impact stretches the cord, and neither the cord nor the stuck gearbox can push that stretch
-back out. At the 400 rad/s closing speed limit the rotor holds 0.090 J, and a cord absorbing
-all of it would stretch to 59.9 N, which is the upper bound the test suite asserts.
-
-### Adaptive grasp, measured across three object shapes
-
-From `uv run python examples/grasp_adaptivity.py`. The controller is identical in all three
-runs and knows nothing about the object.
-
-| Object | Proximal, N | Middle, N | Distal, N | Total, N | Contact points | Settled posture, deg |
-| --- | --- | --- | --- | --- | --- | --- |
-| Flat plate | 0.00 | 15.79 | 17.13 | 32.92 | 4 | 9.1, 101.1, 80.7 |
-| 60 mm cylinder | 12.22 | 6.00 | 20.78 | 39.00 | 7 | 25.0, 37.3, 80.1 |
-| 40 mm cylinder | 47.64 | 13.20 | 10.01 | 70.85 | 7 | 58.8, 100.3, 80.4 |
-
-The tendon tension at the finger is 120.4, 122.6 and 120.3 N for the three objects, a spread
-of 1.9 percent. One actuator sets one scalar. What the mechanism varies is how that scalar
-is shared out, and the share carried by the proximal phalanx runs from zero on the flat
-plate to 67 percent on the small cylinder. The root mean square difference in posture is
-38.0 degrees between the flat plate and the 60 mm cylinder, 28.7 degrees between the flat
-plate and the 40 mm cylinder, and 41.3 degrees between the two cylinders. A kinematically
-coupled finger would return three identical rows.
-
-### Closed loop position and force control
-
-From `uv run python examples/force_control.py`. The armature corner frequency is 1551 Hz,
-the current loop is placed at 500 Hz, and the controller samples at 10 kHz.
-
-| Loop | Target | Settled | Error | Overshoot | Time to 90 percent |
-| --- | --- | --- | --- | --- | --- |
-| Motor position | 250.0 rad | 252.39 rad | +0.96% | 32.0% | 0.307 s |
-| Fingertip force | 4.0 N | 3.92 N | -0.08 N | to 8.00 N peak | 0.628 s |
-| Fingertip force | 8.0 N | 9.34 N | +1.34 N | to 9.69 N peak | 0.486 s |
-| Fingertip force | 12.0 N | 11.86 N | -0.14 N | to 12.34 N peak | 0.575 s |
-
-The force loop runs an integral gain of 0.05 A per newton second, which is three orders of
-magnitude below what a rigid actuator would allow. Two things bound it: the current loop
-underneath it, and the series compliance of the tendon, which puts a lightly damped mode
-between the motor and the fingertip. The rise times also contain the approach, because no
-force exists until the finger arrives.
-
-### Sensitivity to tendon elasticity and capstan friction
-
-From `uv run python examples/sensitivity_study.py`. These are the two parameters least well
-known before a prototype exists.
-
-Tendon series stiffness, swept over a factor of forty:
-
-| Stiffness, N/m | Closing time, s | Grasp force, N | Fingertip force, N | Tendon tension, N | Capstan loss, J |
-| --- | --- | --- | --- | --- | --- |
-| 5 000 | 0.368 | 33.73 | 20.35 | 109.72 | 0.8308 |
-| 10 000 | 0.362 | 35.63 | 21.49 | 115.71 | 0.4719 |
-| 20 000 | 0.358 | 38.29 | 23.09 | 124.12 | 0.2820 |
-| 50 000 | 0.356 | 37.07 | 22.36 | 120.28 | 0.1215 |
-| 200 000 | 0.358 | 32.80 | 19.80 | 106.78 | 0.0465 |
-
-Capstan friction coefficient:
-
-| Coefficient | Closing time, s | Grasp force, N | Fingertip force, N | Tendon tension, N | Transmission ratio |
-| --- | --- | --- | --- | --- | --- |
-| 0.000 | 0.360 | 61.49 | 36.93 | 196.63 | 1.000 |
-| 0.050 | 0.360 | 52.30 | 31.46 | 168.04 | 0.839 |
-| 0.100 | 0.358 | 44.49 | 26.80 | 143.60 | 0.705 |
-| 0.147 | 0.358 | 38.29 | 23.09 | 124.12 | 0.598 |
-| 0.200 | 0.358 | 32.38 | 19.54 | 105.45 | 0.497 |
-
-Closing time is insensitive to both, varying by 3.3 percent across the stiffness sweep and
-0.6 percent across the friction sweep, because free closing is speed limited by the back
-electromotive force and not force limited. Grasp force is insensitive to stiffness, varying
-by 15.5 percent without a monotone trend, and strongly sensitive to friction, varying by
-63.6 percent. At the reference coefficient of 0.147 the routing alone removes 36.9 percent
-of the tendon tension that would otherwise reach the finger.
-
-The engineering conclusion is that the routing is the first thing to improve. Reducing the
-friction coefficient from 0.147 to 0.05, which is what a low friction liner or rolling
-element idlers would give, raises the grasp force from 38.3 N to 52.3 N at the same current,
-a gain no change of motor at the same package size could match.
-
-## Architecture
+That file also lists what the model does not do, and one entry that used to be on the list
+and is not any more. The gearhead has 1.6 degrees of published backlash and the model had
+none; it now carries it as a dead band on the tendon, which cost one parameter, one argument
+and eight tests, and which moved exactly the numbers the old entry predicted it would move.
 
 | Module | Responsibility |
 | --- | --- |
-| `src/transradial_sim/model/units.py` | SI conversions from catalogue units and the regularised sign function |
-| `src/transradial_sim/model/motor.py` | Brushed motor electrical and mechanical dynamics, catalogue parameters, predicted operating points |
-| `src/transradial_sim/model/gearbox.py` | Reduction, reflected inertia, load dependent friction with a stick band |
-| `src/transradial_sim/model/tendon.py` | Series compliance, one way tension clamp, capstan friction over the routing |
-| `src/transradial_sim/model/finger.py` | Planar chain kinematics, mass matrix, recursive Newton-Euler, return springs, end stops |
-| `src/transradial_sim/model/contact.py` | Object shapes and the Hunt and Crossley contact law |
-| `src/transradial_sim/model/system.py` | The assembled plant, the state layout and the exact energy accounting |
-| `src/transradial_sim/algorithm/protocols.py` | Structural interfaces for controllers and integrators |
-| `src/transradial_sim/algorithm/integrators.py` | Fixed step Runge-Kutta and Euler schemes, Richardson order estimation |
-| `src/transradial_sim/algorithm/controllers.py` | Current, position and force loops with anti windup, slew and speed limiting |
-| `src/transradial_sim/pipeline/trace.py` | The structured record a run produces |
-| `src/transradial_sim/pipeline/simulate.py` | The two rate simulation driver |
-| `src/transradial_sim/pipeline/scenario.py` | The reference prosthesis, the test objects and the standard scenarios |
-| `src/transradial_sim/analysis/energetics.py` | Quasi static force chain and the measured loss budget |
-| `src/transradial_sim/analysis/metrics.py` | Closing time, settled grasp summary, headline performance figures |
-| `src/transradial_sim/analysis/sensitivity.py` | Sweeps over tendon stiffness and capstan friction |
-| `src/transradial_sim/analysis/figures.py` | Figure builders, the only module that imports matplotlib |
+| `model/units.py` | SI conversions from catalogue units and the regularised sign function |
+| `model/motor.py` | Brushed motor electrical and mechanical dynamics, catalogue parameters, predicted operating points |
+| `model/gearbox.py` | Reduction, reflected inertia, load dependent friction with a stick band, output backlash |
+| `model/tendon.py` | Series compliance, one way tension clamp, capstan friction, gearhead lost motion |
+| `model/finger.py` | Planar chain kinematics, mass matrix, recursive Newton-Euler, return springs, end stops |
+| `model/contact.py` | Object shapes and the Hunt and Crossley contact law |
+| `model/system.py` | The assembled plant, the state layout and the exact energy accounting |
+| `algorithm/protocols.py` | Structural interfaces for controllers and integrators |
+| `algorithm/integrators.py` | Fixed step Runge-Kutta and Euler schemes, Richardson order estimation |
+| `algorithm/controllers.py` | Current, position and force loops with anti windup, slew and speed limiting |
+| `pipeline/trace.py` | The structured record a run produces |
+| `pipeline/simulate.py` | The two rate simulation driver |
+| `pipeline/scenario.py` | The reference prosthesis, the test objects and the standard scenarios |
+| `analysis/energetics.py` | Quasi static force chain and the measured loss budget |
+| `analysis/metrics.py` | Closing time, settled grasp summary, headline performance figures |
+| `analysis/sensitivity.py` | Sweeps over tendon stiffness and capstan friction |
+| `analysis/figures.py` | Figure builders, the only module that imports matplotlib |
 | `examples/` | Thin wiring scripts, no logic of their own |
 
-Each layer imports only from the ones above it. The model layer performs no input or
-output and holds no mutable state, the algorithm layer does no plotting, and the analysis
-layer reads a trace and nothing else.
+Each layer imports only from the ones above it. The model layer performs no input or output
+and holds no mutable state, the algorithm layer does no plotting, and the analysis layer
+reads a trace and nothing else. The package ships `py.typed`, so an installed copy delivers
+its annotations rather than only passing `mypy` in this repository.
 
-## Testing
+### Checks
 
 ```bash
 uv run pytest
 uv run ruff check .
 uv run mypy
+uv run pytest --cov=src/transradial_sim --cov-report=term-missing
 ```
 
-The suite has three tiers: property and invariant tests covering the mathematics,
-regression tests pinning recorded behaviour, and integration tests running each
-example script under a reduced iteration count.
+The suite is 128 tests in three tiers: property and invariant tests covering the mathematics,
+regression tests pinning recorded behaviour, and integration tests running every example
+script under a reduced step count.
 
-The invariant tier includes the checks that would fail loudest if the physics were wrong:
-the motor reproduces five catalogue operating points, the torque and back electromotive
-force constants agree with the independently published speed constant, energy is conserved
-to 5.1e-8 relative over 40 ms in a configuration with every loss coefficient set to zero,
-the energy balance closes to 2.7e-9 relative over 250 ms with every loss enabled and to
-1.6e-4 over the full 1.7 s grasp reported above, tendon tension stays at zero
-against an adversarial command to compress the cord by a metre at a metre per second, the
-capstan relation reproduces `exp(-mu theta)` at a known wrap angle, the closed form mass
-matrix agrees with the recursive Newton-Euler algorithm to 1e-12, the finger settles into
-measurably different postures on a flat and a round object, and the drive current never
-exceeds its limit under a full duty open loop command.
+The last command above measures statement coverage, and it is 99.42 percent. The workflow
+runs the same command with `--cov-fail-under=97`, which is that figure rounded down with two
+points of headroom for a platform difference. What is not covered is the body of the two
+sensitivity sweeps, which run ten full simulations each and are exercised end to end by the
+integration tier instead, and two defensive branches that no reachable input reaches.
+
+The invariant tier holds the checks that would fail loudest if the physics were wrong: the
+motor reproduces five catalogue operating points, the torque and back electromotive force
+constants agree with the independently published speed constant, energy is conserved to
+4.7e-8 relative over 40 ms with every loss coefficient set to zero, the balance closes to
+2.6e-9 relative over 250 ms with every loss enabled and to 1.5e-4 over the full grasp
+reported above, the tendon holds zero tension against an adversarial command to compress the
+cord by a metre at a metre per second, the capstan relation reproduces `exp(-mu theta)` at a
+known wrap angle, the closed form mass matrix agrees with the recursive Newton-Euler
+algorithm to 1e-12, the finger settles into measurably different postures on a flat and a
+round object, and the drive current never exceeds its limit under a full duty open loop
+command.
 
 Every tolerance is derived from a measurement scale rather than from an observed error. The
-two scales that appear are the integration step with the order of the scheme, and the
-sample interval of a recorded trace. The derivation is stated in the docstring of each test
-and the policy is recorded in [docs/design-notes.md](docs/design-notes.md).
+two scales that appear are the integration step together with the order of the scheme, and
+the sample interval of a recorded trace. Each test states which one it uses, and the policy
+is recorded in [docs/design-notes.md](docs/design-notes.md).
 
-The full suite runs in about 80 seconds.
+The suite runs in about 100 seconds, or about 200 with coverage instrumentation.
 
 ## References
 
@@ -516,6 +573,7 @@ The full suite runs in about 80 seconds.
 | scipy | Available for numerical utilities in the analysis layer | BSD 3-Clause |
 | matplotlib | Figure generation in `analysis/figures.py` | Matplotlib licence, PSF based |
 | pytest | Test runner for all three tiers | MIT |
+| pytest-cov | Statement coverage measurement and the floor enforced in the workflow | MIT |
 | ruff | Linting and import ordering | MIT |
 | mypy | Static type checking under strict mode | MIT |
 

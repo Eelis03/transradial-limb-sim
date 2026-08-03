@@ -15,7 +15,7 @@ import numpy as np
 from transradial_sim.model.contact import evaluate_contact
 from transradial_sim.model.finger import joint_origins
 from transradial_sim.model.motor import MotorParameters, predicted_no_load_speed
-from transradial_sim.model.system import IDX_JOINTS, SystemParameters
+from transradial_sim.model.system import SystemParameters
 from transradial_sim.model.units import rad_s_to_rpm
 from transradial_sim.pipeline.trace import SimulationTrace
 
@@ -197,13 +197,3 @@ def performance_summary(
         stall_grasp_force_n=settled.total_force_n,
         stall_fingertip_force_n=settled.fingertip_force_n,
     )
-
-
-def joint_angles_at(trace: SimulationTrace, index: int) -> tuple[float, ...]:
-    """Return the joint angles at one sample, in rad."""
-    return tuple(float(a) for a in trace.joint_angles_rad[index])
-
-
-def final_joint_angles(state: list[float], joint_count: int) -> tuple[float, ...]:
-    """Return the joint angles held in a raw state vector, in rad."""
-    return tuple(state[IDX_JOINTS : IDX_JOINTS + joint_count])

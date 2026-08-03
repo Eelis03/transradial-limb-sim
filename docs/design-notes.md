@@ -57,6 +57,26 @@ turning, and the tendon tension climbs towards the frictionless limit, which for
 transmission is 2.8 times the correct value. That failure mode was observed during
 development and is the reason the stick branch exists. The switch follows Karnopp.
 
+### Gearhead backlash as a dead band on the tendon, not as a hysteresis state
+
+The catalogue quotes 1.6 degrees of average backlash at the output of the GP 26 B. On the
+8 mm drive pulley that is 0.223 mm of cord, which is the distance the drive winds in before
+the tendon begins to stretch at all. The textbook model of play is a hysteresis element
+with its own state: the driven side is held while the driving side crosses the band, then
+follows on the other flank.
+
+That state is not needed here, and the reason is a property of tendon actuation rather than
+a numerical convenience. Play opens only when the sign of the load torque reverses. The
+load on the drive pulley is the tendon tension, and a tendon pulls and cannot push, so the
+load torque never reverses while the cord is taut. The teeth stay on one flank for the whole
+of a closure whichever way the pulley happens to be turning. The play is therefore taken up
+once, at the start, and is given back only when the cord goes slack, which is exactly the
+behaviour of a dead band on the tendon extension. The dead band adds no state, keeps the
+right hand side no less smooth than the tension clamp already makes it, and stores and
+dissipates nothing, so the exact energy balance is untouched. `tests/test_backlash.py`
+asserts the equivalence directly: the whole plant with play, wound on by the lost motion,
+reproduces the ideal plant term for term.
+
 ### Capstan friction for the routing
 
 Where a cord runs over a guide it presses on the guide and the friction changes the tension
@@ -234,13 +254,6 @@ weight torque about the proximal joint is at most 12 mNm, against a tendon torqu
 It is switched off so that the reported metrics do not depend on hand orientation. The
 gravity term is implemented and tested against the gradient of the potential energy.
 
-### No backlash
-
-The gearhead has 1.6 degrees of average no load backlash at the output, which is 0.4 mm of
-tendon travel. The model has none. Backlash would add a dead zone to any position loop and
-would show up as a delay between commanding a current and seeing a force. It does not
-affect the settled grasp force, because the backlash is taken up once and stays taken up.
-
 ### The controller sees an ideal measurement
 
 Current, motor angle, motor speed and fingertip force are read without noise, quantisation
@@ -248,6 +261,61 @@ or delay. A real drive measures current across a shunt at the pulse width modula
 counts encoder edges, and reads a fingertip force sensor with its own bandwidth. Adding
 those would lower the achievable loop gains, so the force control bandwidth reported here
 should be read as an upper bound.
+
+## Limitations closed
+
+This section records omissions that used to be listed above and are not listed there any
+more, with what closing each one cost and what it changed.
+
+### Gearhead backlash, closed
+
+What it was. The list above used to carry an entry reading that the gearhead has 1.6
+degrees of average no load backlash at the output and that the model had none. It also
+recorded two predictions: that backlash would show up as a delay between commanding a
+current and seeing a force, and that it would not affect the settled grasp force, because
+the play is taken up once and stays taken up.
+
+Why it was the one to close. Of the entries listed above, it was the only one that needed
+no quantity nobody publishes. The angle is a catalogue number for the gearhead already
+specified, the geometry that turns it into cord travel is the drive pulley already
+specified, and neither a finite element solver nor a thermal network nor a test rig is
+involved. The thermal entry needs a winding thermal capacitance the catalogue does not
+give, the structural entry needs a solver this project does not have and does not want,
+and the hardware entry needs hardware.
+
+What it cost. One parameter on `GearboxParameters`, one conversion function, one argument
+on `evaluate_tendon`, one reported field on `TendonState`, one property on
+`SystemParameters` and one changed line in the stored energy calculation. No new state
+variable, no new dependency, no new loss channel, and the energy balance identity is
+unchanged because the dead band neither stores nor dissipates. Eight tests in
+`tests/test_backlash.py`, which run in a tenth of a second because all but one of them are
+algebraic rather than simulated.
+
+What it changed. The old entry got both predictions right. The measured free closing time
+moved from 0.358 s to 0.360 s, which is the two milliseconds the drive spends winding in
+0.223 mm of play at the cord speed it has reached by then, and that is the only pinned
+number in the regression tier that moved at all. The settled grasp values, the tendon
+tension, the phalanx forces and the posture stayed inside the tolerances they were pinned
+at before the play existed, and the quasi static chain cannot move at all, because it is a
+force balance and carries no displacement. The energy budget moved in the fourth
+significant figure: 3.9570 J to 3.9568 J for the reference grasp.
+
+The dead zone the old entry predicted for a closed loop is the largest single effect. The
+fingertip force loop settles the 4 N set point at 3.24 N with the play present and at 3.92 N
+without it, so close to nine tenths of the steady state error at that set point is the play.
+The 8 N and 12 N set points moved by 0.06 N and 0.01 N, which is the same absolute penalty
+measured against a larger command. Reproducing the comparison needs one line:
+`examples/force_control.py` with `backlash_rad` set to zero on the gearbox it builds.
+
+Also corrected. The removed entry stated the play as 0.4 mm of tendon travel. The catalogue
+angle on the 8 mm reference pulley is 0.223 mm, and `tests/test_backlash.py` now asserts the
+figure against the two published quantities it follows from rather than leaving it as prose.
+
+What remains. Backlash is modelled at the gearhead output only. The tendon terminations and
+the joint pin clearances have play of their own, which is lumped into the series compliance
+rather than into the dead band, and no catalogue publishes it. The dead band is also the
+average backlash rather than a distribution, so it describes a typical unit and not a worst
+case one.
 
 ## Regression and tolerance policy
 

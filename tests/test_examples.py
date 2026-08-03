@@ -23,6 +23,7 @@ SCRIPTS = (
     "fingertip_force_curve.py",
     "force_control.py",
     "sensitivity_study.py",
+    "publish_figures.py",
 )
 
 

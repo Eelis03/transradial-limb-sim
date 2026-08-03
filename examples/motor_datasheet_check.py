@@ -7,9 +7,15 @@ external check that the parameters were entered and converted correctly.
 
 from __future__ import annotations
 
+import math
+
 from _common import parse_options
 
-from transradial_sim.model.gearbox import MAXON_GP26B_84, current_limit_from_gearbox
+from transradial_sim.model.gearbox import (
+    MAXON_GP26B_84,
+    current_limit_from_gearbox,
+    lost_motion_m,
+)
 from transradial_sim.model.motor import (
     CATALOGUE_SPEED_CONSTANT_RPM_PER_V,
     MAXON_RE25_118752,
@@ -17,6 +23,7 @@ from transradial_sim.model.motor import (
     predicted_no_load_speed,
     predicted_stall_torque,
 )
+from transradial_sim.model.tendon import PROSTHETIC_TENDON
 from transradial_sim.model.units import nm_to_mnm, rad_s_to_rpm
 
 
@@ -73,6 +80,7 @@ def main() -> None:
 
     print()
     limit = current_limit_from_gearbox(MAXON_GP26B_84, motor.torque_constant_nm_per_a)
+    play_m = lost_motion_m(MAXON_GP26B_84, PROSTHETIC_TENDON.drive_radius_m)
     print(f"gearbox: {MAXON_GP26B_84.part_number}")
     print(f"current at the gearbox continuous torque rating   {limit:.3f} A")
     print(
@@ -80,6 +88,14 @@ def main() -> None:
         f"{catalogue.max_continuous_current_a:.3f} A"
     )
     print("the gearbox sets the usable current, not the motor")
+    print(
+        "average backlash at no load                       "
+        f"{math.degrees(MAXON_GP26B_84.backlash_rad):.1f} deg at the output"
+    )
+    print(
+        f"lost motion on the {1.0e3 * PROSTHETIC_TENDON.drive_radius_m:.0f} mm drive pulley"
+        f"                {1.0e3 * play_m:.3f} mm of cord"
+    )
 
 
 if __name__ == "__main__":

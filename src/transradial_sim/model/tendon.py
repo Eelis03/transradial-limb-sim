@@ -23,6 +23,11 @@ an element of wrap angle gives the capstan, or Euler-Eytelwein, relation
 with ``theta`` the total wrap angle in radians. The exponent is the reason a tendon
 driven hand loses a large fraction of its actuation force in the routing, and the reason
 the loss cannot be reduced by increasing the tension.
+
+Lost motion. The gearhead in front of the drive pulley has angular play, so a length of
+cord equal to that play times the pulley radius has to be wound in before the series
+element begins to stretch at all. It is entered here as ``lost_motion_m`` rather than as a
+gearbox state, and the reason it can be is given in :func:`evaluate_tendon`.
 """
 
 from __future__ import annotations
@@ -150,7 +155,19 @@ class TendonState:
     """Instantaneous tendon quantities derived from the plant state."""
 
     extension_m: float
-    """Stretch of the series element, in m. Negative means the cord is slack."""
+    """Relative displacement of the two ends of the transmission, in m.
+
+    Negative means the cord is slack. This is the drive displacement minus the finger
+    displacement, before the gearhead lost motion is taken out of it.
+    """
+
+    elastic_extension_m: float
+    """Stretch actually carried by the series spring, in m.
+
+    :attr:`extension_m` less the lost motion, clamped at zero. The two differ only by the
+    width of the backlash dead band, and they are reported separately so that the play can
+    be read off a trace rather than inferred from it.
+    """
 
     extension_rate_m_per_s: float
     """Rate of change of the stretch, in m/s."""
@@ -181,12 +198,24 @@ def evaluate_tendon(
     finger_displacement_m: float,
     finger_velocity_m_per_s: float,
     impending_direction: float = 0.0,
+    lost_motion_m: float = 0.0,
 ) -> TendonState:
     """Evaluate the tendon transmission for one instant.
 
     The series element is placed downstream of the routing, so the tension it carries is
     the tension the finger sees, and the drive end has to supply that tension multiplied
     by the capstan factor in whichever direction the cord is moving.
+
+    ``lost_motion_m`` is the cord travel absorbed by the angular play of the gearhead
+    ahead of the drive pulley. It enters as a dead band on the extension rather than as a
+    hysteresis state, and for this transmission the two are the same thing. The play opens
+    only when the sign of the load torque on the pulley reverses, the load here is the
+    tendon tension, and a tendon pulls and cannot push, so the torque never reverses while
+    the cord is taut and the teeth stay on one flank throughout a closure. The play is
+    therefore taken up once, at the start of each closure, and is given back only when the
+    cord goes slack, which is exactly what a dead band on the extension does. Modelling it
+    as a stateful hysteresis would add a discontinuous state and would produce the same
+    trajectory.
 
     Args:
         tendon: Transmission parameters.
@@ -197,6 +226,8 @@ def evaluate_tendon(
         impending_direction: Sign of the direction the drive is pushing the cord. Used
             only inside the stick band, where the measured speed carries no information
             about which way the cord is about to slide.
+        lost_motion_m: Width of the backlash dead band referred to the cord, in m. Zero
+            for an ideal gearhead.
 
     Returns:
         The tendon state, with both tensions clamped at zero and both loss powers
@@ -204,13 +235,16 @@ def evaluate_tendon(
     """
     extension = drive_displacement_m - finger_displacement_m
     extension_rate = drive_velocity_m_per_s - finger_velocity_m_per_s
+    elastic = extension - lost_motion_m
 
-    if extension > 0.0:
-        spring_force = tendon.stiffness_n_per_m * extension
-        stored = 0.5 * spring_force * extension
+    if elastic > 0.0:
+        spring_force = tendon.stiffness_n_per_m * elastic
+        stored = 0.5 * spring_force * elastic
         damper_force = tendon.damping_ns_per_m * extension_rate
     else:
-        # Slack cord. Neither the spring nor the damper is engaged.
+        # Slack cord, or play not yet taken up. Neither the spring nor the damper is
+        # engaged, and no energy is stored or dissipated inside the dead band.
+        elastic = 0.0
         spring_force = 0.0
         stored = 0.0
         damper_force = 0.0
@@ -238,6 +272,7 @@ def evaluate_tendon(
 
     return TendonState(
         extension_m=extension,
+        elastic_extension_m=elastic,
         extension_rate_m_per_s=extension_rate,
         drive_velocity_m_per_s=drive_velocity_m_per_s,
         finger_tension_n=finger_tension,

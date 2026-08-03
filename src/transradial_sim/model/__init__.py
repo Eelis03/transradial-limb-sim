@@ -26,6 +26,7 @@ from transradial_sim.model.gearbox import (
     MAXON_GP26B_84,
     GearboxParameters,
     current_limit_from_gearbox,
+    lost_motion_m,
 )
 from transradial_sim.model.motor import (
     MAXON_RE25_118752,
@@ -85,6 +86,7 @@ __all__ = [
     "evaluate_plant",
     "evaluate_tendon",
     "initial_state",
+    "lost_motion_m",
     "mass_matrix",
     "predicted_no_load_speed",
     "predicted_stall_torque",

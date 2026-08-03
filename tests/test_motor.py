@@ -11,7 +11,11 @@ from dataclasses import replace
 
 import pytest
 
-from transradial_sim.model.gearbox import MAXON_GP26B_84, current_limit_from_gearbox
+from transradial_sim.model.gearbox import (
+    MAXON_GP26B_84,
+    current_limit_from_gearbox,
+    output_speed,
+)
 from transradial_sim.model.motor import (
     CATALOGUE_SPEED_CONSTANT_RPM_PER_V,
     MAXON_RE25_118752,
@@ -23,7 +27,15 @@ from transradial_sim.model.motor import (
     predicted_no_load_speed,
     predicted_stall_torque,
 )
-from transradial_sim.model.units import rad_s_to_rpm
+from transradial_sim.model.units import (
+    gcm2_to_kgm2,
+    kgm2_to_gcm2,
+    mnm_per_a_to_nm_per_a,
+    nm_to_mnm,
+    rad_s_to_rpm,
+    rpm_to_rad_s,
+    smooth_sign,
+)
 
 MOTOR = MAXON_RE25_118752
 CATALOGUE = MOTOR.catalogue
@@ -188,3 +200,39 @@ def test_electrical_time_constant_is_finite_and_small() -> None:
     )
     assert 1.0e-5 < MOTOR.electrical_time_constant_s < 1.0e-3
     assert not math.isnan(MOTOR.electrical_time_constant_s)
+
+
+def test_the_output_turns_at_the_input_speed_divided_by_the_ratio() -> None:
+    """The reduction is kinematic and exact, in both directions of rotation."""
+    for speed in (-900.0, 0.0, 900.0):
+        assert output_speed(MAXON_GP26B_84, speed) == pytest.approx(
+            speed / MAXON_GP26B_84.ratio, rel=1.0e-12
+        )
+    assert output_speed(MAXON_GP26B_84, MAXON_GP26B_84.max_input_speed_rad_s) < 10.0
+
+
+def test_the_catalogue_conversions_round_trip() -> None:
+    """Each unit conversion inverts its partner, so no catalogue value can drift.
+
+    The conversions are used once each, where catalogue data is entered, so the failure
+    they guard against is a factor of a thousand entered in the wrong direction rather
+    than an arithmetic error.
+    """
+    assert nm_to_mnm(MOTOR.torque_constant_nm_per_a) == pytest.approx(23.4, rel=1.0e-9)
+    assert mnm_per_a_to_nm_per_a(nm_to_mnm(0.0234)) == pytest.approx(0.0234, rel=1.0e-12)
+    assert kgm2_to_gcm2(MOTOR.rotor_inertia_kgm2) == pytest.approx(10.8, rel=1.0e-9)
+    assert gcm2_to_kgm2(kgm2_to_gcm2(1.5e-6)) == pytest.approx(1.5e-6, rel=1.0e-12)
+    assert rad_s_to_rpm(rpm_to_rad_s(9560.0)) == pytest.approx(9560.0, rel=1.0e-12)
+
+
+def test_the_regularised_sign_needs_a_positive_scale() -> None:
+    """A zero or negative blending scale has no meaning and is rejected.
+
+    Without the guard the friction terms would divide by zero and return a silent NaN that
+    propagates through the whole state vector.
+    """
+    assert smooth_sign(1.0, 1.0e-3) == pytest.approx(1.0, abs=1.0e-9)
+    assert smooth_sign(-1.0, 1.0e-3) == pytest.approx(-1.0, abs=1.0e-9)
+    assert smooth_sign(0.0, 1.0e-3) == 0.0
+    with pytest.raises(ValueError, match="scale must be strictly positive"):
+        smooth_sign(1.0, 0.0)

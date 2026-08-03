@@ -56,6 +56,7 @@ from transradial_sim.model.finger import (
 from transradial_sim.model.gearbox import (
     GearboxParameters,
     loss_torque_on_motor,
+    lost_motion_m,
     reflected_load_torque,
 )
 from transradial_sim.model.motor import MotorParameters, electromagnetic_torque, friction_torque
@@ -173,6 +174,15 @@ class SystemParameters:
         """Rotor plus gearbox inertia referred to the motor shaft, in kg m^2."""
         return self.motor.rotor_inertia_kgm2 + self.gearbox.inertia_kgm2
 
+    @property
+    def lost_motion_m(self) -> float:
+        """Cord travel the gearbox play absorbs before the tendon loads, in m.
+
+        The drive pulley is mounted on the gearbox output, so the angular play of the
+        gearhead appears at the cord as a dead band of this width.
+        """
+        return lost_motion_m(self.gearbox, self.tendon.drive_radius_m)
+
 
 def initial_state(
     params: SystemParameters, angles_rad: tuple[float, ...] | None = None
@@ -184,7 +194,9 @@ def initial_state(
     state = [0.0] * params.state_size
     for index, angle in enumerate(joints):
         state[IDX_JOINTS + index] = angle
-    # The drive pulley starts at the position that leaves the cord exactly taut.
+    # The drive pulley starts at the position that leaves the cord exactly taut. With a
+    # gearhead that has play the tendon is still disengaged there, because the play is
+    # free whenever the cord carries no tension, so the run begins by taking it up.
     state[IDX_MOTOR_ANGLE] = (
         tendon_displacement(params.finger, joints)
         * params.gearbox.ratio
@@ -263,9 +275,9 @@ def stored_energy(params: SystemParameters, state: list[float]) -> StoredEnergy:
         state[IDX_MOTOR_ANGLE] * params.tendon.drive_radius_m / params.gearbox.ratio
     )
     finger_displacement = tendon_displacement(params.finger, angles)
-    extension = drive_displacement - finger_displacement
+    elastic = drive_displacement - finger_displacement - params.lost_motion_m
     tendon_elastic = (
-        0.5 * params.tendon.stiffness_n_per_m * extension * extension if extension > 0.0 else 0.0
+        0.5 * params.tendon.stiffness_n_per_m * elastic * elastic if elastic > 0.0 else 0.0
     )
 
     contact_elastic = 0.0
@@ -387,6 +399,7 @@ def evaluate_plant(
         finger_displacement,
         finger_velocity,
         impending,
+        params.lost_motion_m,
     )
 
     # --- Motor and gearbox -----------------------------------------------------------

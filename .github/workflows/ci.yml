@@ -29,8 +29,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
+      # The floor is the measured statement coverage rounded down, less two points of
+      # headroom for a platform difference. Measured at 99.42 percent on Windows.
       - name: Run tests
-        run: uv run pytest -q
+        run: >
+          uv run pytest -q
+          --cov=src/transradial_sim
+          --cov-report=term-missing
+          --cov-fail-under=97
 
       - name: Lint
         run: uv run ruff check .

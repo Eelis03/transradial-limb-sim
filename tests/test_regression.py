@@ -64,9 +64,7 @@ def _reference_grasp() -> SimulationTrace:
         step_s=REFERENCE_STEP_S,
         sample_stride=SAMPLE_STRIDE,
     )
-    return run_scenario(
-        config, grasp_controller(params, squeeze_start_s=REFERENCE_SQUEEZE_START_S)
-    )
+    return run_scenario(config, grasp_controller(params, squeeze_start_s=REFERENCE_SQUEEZE_START_S))
 
 
 def test_reference_force_chain_values() -> None:
@@ -101,9 +99,7 @@ def test_reference_grasp_steady_state() -> None:
     settled = grasp_summary(trace)
     assert settled.drive_tension_n == pytest.approx(207.62, rel=STEADY_STATE_TOLERANCE)
     assert settled.finger_tension_n == pytest.approx(124.12, rel=STEADY_STATE_TOLERANCE)
-    assert settled.measured_capstan_ratio == pytest.approx(
-        0.597799, rel=STEADY_STATE_TOLERANCE
-    )
+    assert settled.measured_capstan_ratio == pytest.approx(0.597799, rel=STEADY_STATE_TOLERANCE)
     assert settled.total_force_n == pytest.approx(38.289, rel=STEADY_STATE_TOLERANCE)
     assert settled.fingertip_force_n == pytest.approx(23.091, rel=STEADY_STATE_TOLERANCE)
     assert settled.contact_points == 2

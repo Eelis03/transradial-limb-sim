@@ -49,9 +49,7 @@ def truncation_bound(fastest_rate_rad_s: float, step_s: float) -> float:
     return (fastest_rate_rad_s * step_s) ** SCHEME_ORDER
 
 
-def oscillatory_bound(
-    frequency_rad_s: float, step_s: float, duration_s: float
-) -> float:
+def oscillatory_bound(frequency_rad_s: float, step_s: float, duration_s: float) -> float:
     """Return the relative error bound of the scheme on a conservative run.
 
     A conservative system has no damping to absorb the local error, so the phase error of
@@ -120,8 +118,7 @@ def lossless_natural_rate_rad_s(params: SystemParameters) -> float:
     """
     torque_constant = params.motor.torque_constant_nm_per_a
     return math.sqrt(
-        torque_constant * torque_constant
-        / (params.motor.inductance_h * params.rotor_inertia_kgm2)
+        torque_constant * torque_constant / (params.motor.inductance_h * params.rotor_inertia_kgm2)
     )
 
 

@@ -219,9 +219,7 @@ def friction_torque(motor: MotorParameters, speed_rad_s: float) -> float:
     ``friction_torque * speed`` is non negative at every speed. That property is what
     makes the energy balance close with a single dissipated term.
     """
-    coulomb = motor.coulomb_friction_nm * smooth_sign(
-        speed_rad_s, motor.speed_regularisation_rad_s
-    )
+    coulomb = motor.coulomb_friction_nm * smooth_sign(speed_rad_s, motor.speed_regularisation_rad_s)
     return motor.viscous_friction_nms * speed_rad_s + coulomb
 
 

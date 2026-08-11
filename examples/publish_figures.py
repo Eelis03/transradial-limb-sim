@@ -42,9 +42,7 @@ def main() -> None:
     step = 1.0e-4 if options.quick else 5.0e-5
 
     stall = stall_scenario(duration_s=duration, step_s=step)
-    stall_trace = run_scenario(
-        stall, grasp_controller(stall.params, squeeze_start_s=squeeze)
-    )
+    stall_trace = run_scenario(stall, grasp_controller(stall.params, squeeze_start_s=squeeze))
     budget = energy_budget(stall_trace)
     chain = force_chain(stall.params)
 

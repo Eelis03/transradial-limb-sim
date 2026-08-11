@@ -465,9 +465,7 @@ def joint_limit_torques(
     return torques, stored
 
 
-def limit_spring_torques(
-    finger: FingerGeometry, angles_rad: tuple[float, ...]
-) -> list[float]:
+def limit_spring_torques(finger: FingerGeometry, angles_rad: tuple[float, ...]) -> list[float]:
     """Return only the elastic part of the end stop torques, in Nm.
 
     Separating the elastic part from the damped part lets the energy accounting split the

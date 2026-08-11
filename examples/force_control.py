@@ -81,8 +81,7 @@ def main() -> None:
         f"({100.0 * (settled / POSITION_TARGET_RAD - 1.0):+.2f} percent)"
     )
     print(
-        f"  overshoot                      "
-        f"{100.0 * (peak / POSITION_TARGET_RAD - 1.0):.1f} percent"
+        f"  overshoot                      {100.0 * (peak / POSITION_TARGET_RAD - 1.0):.1f} percent"
     )
     print(f"  time to 90 percent of target   {rise:.3f} s")
 

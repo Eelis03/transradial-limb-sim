@@ -3,7 +3,7 @@
 Physics simulation of transradial prosthesis actuation with tendon and motor models.
 
 [![CI](https://github.com/Eelis03/transradial-limb-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/Eelis03/transradial-limb-sim/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ![Where one grasp spends 3.9568 J of battery energy: the motor winding takes 54.77 percent as resistive heat, the bridge 12.63 percent, the gearbox 12.28 percent and the routing 7.13 percent, while the work delivered to the object is 0.18 percent and its bar is too short to see](docs/figures/energy-breakdown.png)
@@ -340,7 +340,9 @@ would match it.
 
 ## Installation
 
-Requires Python 3.12 or later.
+Requires Python 3.12 or later. Continuous integration runs the whole suite on 3.12 and 3.13,
+on Linux and on Windows, so the version floor in `pyproject.toml` is a tested claim rather
+than a declared one.
 
 ```bash
 git clone https://github.com/Eelis03/transradial-limb-sim.git
@@ -461,6 +463,7 @@ its annotations rather than only passing `mypy` in this repository.
 ```bash
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
 uv run pytest --cov=src/transradial_sim --cov-report=term-missing
 ```

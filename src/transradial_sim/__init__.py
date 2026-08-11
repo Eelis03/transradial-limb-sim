@@ -9,7 +9,8 @@ The package is arranged in five layers, each importing only from the ones before
 ``transradial_sim.pipeline``
     Simulation scenarios that produce a structured trace.
 ``transradial_sim.analysis``
-    Efficiency chain, performance metrics, sensitivity study and figures.
+    Efficiency chain, performance metrics, catalogue rating audit, sensitivity study
+    and figures.
 ``examples/``
     Thin wiring scripts that contain no logic of their own.
 """

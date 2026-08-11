@@ -252,6 +252,53 @@ the smallest set point, which is what a fixed dead zone does. The model carries 
 of gearhead play listed above, and a loop has to wind that out of the transmission before it
 can trim anything, so the same absolute penalty costs a larger fraction of a smaller command.
 
+### What the runs ask of the parts, against what the parts are rated for
+
+From `uv run python examples/rating_audit.py`. The drive is sized by the force balance two
+sections up: the current limit is the current at which the gearhead reaches its continuous
+output torque, and it sits below the motor's own continuous current. That is a statement
+about a chain with no speed in it and no impact, and both reference runs break it.
+
+| Run | Rating | Published | Peak | Margin | Time above |
+| --- | --- | --- | --- | --- | --- |
+| Free closing, 0.80 s | motor continuous current | 1.16 A | 1.131 A | 0.975 | 0.000 s |
+| | gearbox continuous output torque | 1.3 Nm | 2.2155 Nm | 1.704 | 0.368 s |
+| | gearbox intermittent output torque | 1.9 Nm | 2.2155 Nm | 1.166 | 0.335 s |
+| | gearbox input speed | 8000 rpm | 8817 rpm | 1.102 | 0.368 s |
+| Rigid grasp, 1.70 s | motor continuous current | 1.16 A | 1.123 A | 0.968 | 0.000 s |
+| | gearbox continuous output torque | 1.3 Nm | 1.6610 Nm | 1.278 | 0.603 s |
+| | gearbox intermittent output torque | 1.9 Nm | 1.6610 Nm | 0.874 | 0.000 s |
+| | gearbox input speed | 8000 rpm | 3747 rpm | 0.468 | 0.000 s |
+
+The speeds are given here in rpm, which is the unit the catalogue quotes them in; the audit
+works in rad/s and the script prints both. Each time above is the time the run spent past the
+rating, with every crossing placed between the two samples that bracket it rather than being
+counted in whole samples.
+
+The motor stays inside its own rating in both runs, which is the sizing calculation working
+as intended. Everything that does not is the gearhead.
+
+The grasp holds 1.6610 Nm at the gearbox output for 0.603 s, against the 1.3 Nm the current
+limit was derived from. That is the excess the settled tendon tension already shows over the
+chain, read at the other end of the drive pulley and measured against a rating instead of
+against a prediction, and it has the same cause: the impact stretch cannot be pushed back
+out. It stays below the 1.9 Nm the catalogue permits intermittently, so the reference grasp
+is a hard duty and not an overload.
+
+Free closing is the worse case and it is the one that looks harmless. With nothing to grasp,
+the finger runs into its own end stops still turning near the 8817 rpm peak, the cord absorbs
+the arrival, and the drive settles holding 2.2155 Nm at the gearbox output: 1.70 times the
+continuous rating, and 1.17 times the torque the catalogue permits even intermittently, for
+0.335 s of a 0.80 s run. The same run holds the gearhead input above its recommended
+8000 rpm for 0.368 s.
+
+That is not a modelling artefact and it is not new physics either. It is the same impact this
+page has already described twice, arriving at the speed the grasp runs deliberately avoid:
+they hold the drive to a 400 rad/s closing speed limit so that the finger does not reach the
+object carrying the whole kinetic energy of the rotor, and the free closing measurement, by
+design, does not. What the audit adds is that the run nobody would have thought to check is
+the one the gearhead cannot be asked to repeat.
+
 ### The two numbers nobody has measured
 
 From `uv run python examples/sensitivity_study.py`. The tendon series stiffness and the
@@ -347,6 +394,7 @@ uv run python examples/fingertip_force_curve.py
 uv run python examples/grasp_adaptivity.py
 uv run python examples/finger_closing.py
 uv run python examples/force_control.py
+uv run python examples/rating_audit.py
 uv run python examples/sensitivity_study.py
 ```
 
@@ -400,6 +448,7 @@ and eight tests, and which moved exactly the numbers the old entry predicted it 
 | `pipeline/scenario.py` | The reference prosthesis, the test objects and the standard scenarios |
 | `analysis/energetics.py` | Quasi static force chain and the measured loss budget |
 | `analysis/metrics.py` | Closing time, settled grasp summary, headline performance figures |
+| `analysis/ratings.py` | Peak, margin and time above each published component rating |
 | `analysis/sensitivity.py` | Sweeps over tendon stiffness and capstan friction |
 | `analysis/figures.py` | Figure builders, the only module that imports matplotlib |
 | `examples/` | Thin wiring scripts, no logic of their own |
@@ -419,11 +468,11 @@ uv run mypy
 uv run pytest --cov=src/transradial_sim --cov-report=term-missing
 ```
 
-The suite is 128 tests in three tiers: property and invariant tests covering the mathematics,
+The suite is 137 tests in three tiers: property and invariant tests covering the mathematics,
 regression tests pinning recorded behaviour, and integration tests running every example
 script under a reduced step count.
 
-The last command above measures statement coverage, and it is 99.42 percent. The workflow
+The last command above measures statement coverage, and it is 99.44 percent. The workflow
 runs the same command with `--cov-fail-under=97`, which is that figure rounded down with two
 points of headroom for a platform difference. What is not covered is the body of the two
 sensitivity sweeps, which run ten full simulations each and are exercised end to end by the

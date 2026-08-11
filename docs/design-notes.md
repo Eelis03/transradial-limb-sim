@@ -125,6 +125,22 @@ bandwidth would depend on the solver tolerance rather than on the drive. A fixed
 makes the convergence study a direct statement about the reported results: halving the step
 is the only change made.
 
+### Component ratings are reported, not enforced
+
+The catalogue ratings of the motor and the gearhead are checked against a finished run and
+reported as a table, rather than being asserted inside the plant. A rating is a statement
+about what a part may be asked to do repeatedly and not a physical limit the equations have
+to respect: a gearhead handed 1.7 times its continuous output torque delivers that torque
+and wears, it does not refuse. Raising when a run crosses a rating would leave the
+simulation unable to say how far past it the design went, which is the number a design
+review needs.
+
+Each check reports the time spent above the rating alongside the peak, because every rating
+involved is a duty statement rather than a bound. The crossings are placed by interpolating
+the two samples that bracket them rather than by counting the samples above the level, so
+the answer is not quantised to the sample stride of the trace, which for a rating crossed
+briefly would be the whole of the answer.
+
 ## Rejected alternatives
 
 ### An adaptive stiff solver

@@ -1,4 +1,4 @@
-"""Analysis layer: efficiency chain, performance metrics, sensitivity study, figures."""
+"""Analysis layer: efficiency chain, metrics, rating audit, sensitivity study, figures."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from transradial_sim.analysis.metrics import (
     performance_summary,
     settling_index,
 )
+from transradial_sim.analysis.ratings import RatingAudit, RatingCheck, rating_audit
 from transradial_sim.analysis.sensitivity import (
     FRICTION_VALUES,
     STIFFNESS_VALUES,
@@ -38,6 +39,8 @@ __all__ = [
     "GraspSummary",
     "LossRow",
     "PerformanceSummary",
+    "RatingAudit",
+    "RatingCheck",
     "SensitivityPoint",
     "closing_time_s",
     "energy_budget",
@@ -46,6 +49,7 @@ __all__ = [
     "frictionless_tension_n",
     "grasp_summary",
     "performance_summary",
+    "rating_audit",
     "relative_spread",
     "settling_index",
     "sweep_capstan_friction",

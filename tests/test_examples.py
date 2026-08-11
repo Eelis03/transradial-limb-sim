@@ -22,6 +22,7 @@ SCRIPTS = (
     "efficiency_chain.py",
     "fingertip_force_curve.py",
     "force_control.py",
+    "rating_audit.py",
     "sensitivity_study.py",
     "publish_figures.py",
 )

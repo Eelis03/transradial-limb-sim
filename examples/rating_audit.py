@@ -26,15 +26,18 @@ def report(audit: RatingAudit) -> None:
     for check in audit.checks:
         published = f"{check.rating:.4g} {check.unit}"
         peak = f"{check.peak:.4g} {check.unit}"
-        print(f"  {check.name:<36}{published:>14}{peak:>14}"
-              f"{check.margin:>9.3f}{check.time_above_s:>11.3f} s")
+        print(
+            f"  {check.name:<36}{published:>14}{peak:>14}"
+            f"{check.margin:>9.3f}{check.time_above_s:>11.3f} s"
+        )
     if audit.within_ratings:
-        print(f"  inside every rating, closest is {audit.worst.name} "
-              f"at {audit.worst.margin:.3f}")
+        print(f"  inside every rating, closest is {audit.worst.name} at {audit.worst.margin:.3f}")
         return
     for check in audit.exceedances:
-        print(f"  exceeded: {check.name} at {check.margin:.3f} times its rating, "
-              f"for {100.0 * check.share:.1f} percent of the run")
+        print(
+            f"  exceeded: {check.name} at {check.margin:.3f} times its rating, "
+            f"for {100.0 * check.share:.1f} percent of the run"
+        )
 
 
 def main() -> None:
@@ -60,9 +63,11 @@ def main() -> None:
     for label, audit in (("free closing", closing_audit), ("rigid grasp", grasp_audit)):
         speed = audit.check("gearbox input speed")
         torque = audit.check("gearbox continuous output torque")
-        print(f"  {label:<14}input speed {rad_s_to_rpm(speed.peak):>6.0f} rpm of "
-              f"{rad_s_to_rpm(speed.rating):.0f} rpm, output torque {torque.peak:.4f} Nm of "
-              f"{torque.rating:.2f} Nm continuous")
+        print(
+            f"  {label:<14}input speed {rad_s_to_rpm(speed.peak):>6.0f} rpm of "
+            f"{rad_s_to_rpm(speed.rating):.0f} rpm, output torque {torque.peak:.4f} Nm of "
+            f"{torque.rating:.2f} Nm continuous"
+        )
 
 
 if __name__ == "__main__":

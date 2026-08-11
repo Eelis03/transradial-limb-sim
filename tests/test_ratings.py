@@ -136,9 +136,7 @@ def test_every_rating_the_components_publish_is_checked_against_the_run() -> Non
         assert 0.0 <= check.share <= 1.0, check.name
         assert check.margin == pytest.approx(check.peak / check.rating, rel=1.0e-12)
     assert audit.check("gearbox input speed").component == params.gearbox.part_number
-    assert audit.check("motor continuous current").component == (
-        params.motor.catalogue.part_number
-    )
+    assert audit.check("motor continuous current").component == (params.motor.catalogue.part_number)
     assert tuple(check.unit for check in audit.checks) == ("A", "Nm", "Nm", "rad/s")
 
 

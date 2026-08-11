@@ -86,9 +86,7 @@ def test_nothing_is_transmitted_inside_the_dead_band() -> None:
     play = 2.2e-4
     for fraction in (0.0, 0.25, 0.5, 0.75, 1.0):
         for rate in (-0.05, 0.0, 0.05):
-            state = evaluate_tendon(
-                PROSTHETIC_TENDON, fraction * play, rate, 0.0, 0.0, 1.0, play
-            )
+            state = evaluate_tendon(PROSTHETIC_TENDON, fraction * play, rate, 0.0, 0.0, 1.0, play)
             assert state.finger_tension_n == 0.0
             assert state.drive_tension_n == 0.0
             assert state.stored_energy_j == 0.0
@@ -185,9 +183,7 @@ def test_a_run_shows_the_dead_band_in_its_trace() -> None:
     play = params.lost_motion_m
 
     disengaged = 0
-    for extension, tension in zip(
-        trace.tendon_extension_m, trace.finger_tension_n, strict=True
-    ):
+    for extension, tension in zip(trace.tendon_extension_m, trace.finger_tension_n, strict=True):
         if float(extension) <= play:
             assert float(tension) == 0.0
             disengaged += 1

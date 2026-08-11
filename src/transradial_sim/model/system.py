@@ -360,9 +360,7 @@ def evaluate_plant(
         - current * supply.driver_resistance_ohm
     )
     battery_loss = battery_current * battery_current * supply.internal_resistance_ohm
-    driver_loss = (
-        current * current * supply.driver_resistance_ohm + supply.driver_quiescent_power_w
-    )
+    driver_loss = current * current * supply.driver_resistance_ohm + supply.driver_quiescent_power_w
     battery_power = open_circuit * battery_current + supply.driver_quiescent_power_w
 
     net_voltage = applied_voltage - motor.resistance_ohm * current - back_emf
@@ -406,9 +404,7 @@ def evaluate_plant(
     output_torque = radius * tendon_state.drive_tension_n
     load_torque = reflected_load_torque(gearbox, output_torque)
     driving_torque = shaft_torque - load_torque
-    gear_loss_torque = loss_torque_on_motor(
-        gearbox, output_torque, motor_speed, driving_torque
-    )
+    gear_loss_torque = loss_torque_on_motor(gearbox, output_torque, motor_speed, driving_torque)
     speed_rate = (driving_torque - gear_loss_torque) / params.rotor_inertia_kgm2
 
     motor_friction_loss = motor_friction * motor_speed

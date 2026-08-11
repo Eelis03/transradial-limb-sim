@@ -53,9 +53,7 @@ def main() -> None:
         )
         trace = run_scenario(
             config,
-            grasp_controller(
-                params, approach_a=min(0.35, current), squeeze_start_s=squeeze
-            ),
+            grasp_controller(params, approach_a=min(0.35, current), squeeze_start_s=squeeze),
         )
         settled = grasp_summary(trace)
         chain = force_chain(params, current)
@@ -80,9 +78,7 @@ def main() -> None:
         * reference.gearbox.ratio
         / reference.tendon.drive_radius_m
     )
-    print(
-        f"tendon tension per ampere at the drive {predicted:.2f} N/A from the transmission"
-    )
+    print(f"tendon tension per ampere at the drive {predicted:.2f} N/A from the transmission")
     print("The sliding column is the quasi static chain with the gearbox and capstan")
     print("losses fully applied, and the lossless column is the same chain with both")
     print("removed. The measured tension sits above the sliding value by the residual")

@@ -153,9 +153,7 @@ def test_point_velocity_matches_finite_difference() -> None:
 
     origins_ahead, directions_ahead, _ = joint_origins(FINGER, ahead)
     origins_behind, directions_behind, _ = joint_origins(FINGER, behind)
-    ahead_point = point_on_phalanx(
-        origins_ahead, directions_ahead, 2, FINGER.phalanges[2].length_m
-    )
+    ahead_point = point_on_phalanx(origins_ahead, directions_ahead, 2, FINGER.phalanges[2].length_m)
     behind_point = point_on_phalanx(
         origins_behind, directions_behind, 2, FINGER.phalanges[2].length_m
     )
@@ -217,9 +215,7 @@ def test_contact_force_is_never_attractive() -> None:
     angles = (0.6, 0.6, 0.4)
     origins, directions, _ = joint_origins(FINGER, angles)
     for rate in (-50.0, -5.0, 0.0, 5.0, 50.0):
-        result = evaluate_contact(
-            FINGER, model, surface, origins, directions, (rate, rate, rate)
-        )
+        result = evaluate_contact(FINGER, model, surface, origins, directions, (rate, rate, rate))
         assert result.total_normal_force_n >= 0.0
         assert all(force >= 0.0 for force in result.phalanx_forces_n)
         assert result.dissipated_power_w >= -1.0e-15
@@ -242,8 +238,7 @@ def test_contact_torque_power_matches_the_work_on_the_object() -> None:
     result = evaluate_contact(FINGER, model, obstacle, origins, directions, rates)
     assert result.contact_count > 0
     delivered = sum(
-        torque * rate
-        for torque, rate in zip(result.joint_torques_nm, rates, strict=True)
+        torque * rate for torque, rate in zip(result.joint_torques_nm, rates, strict=True)
     )
     assert delivered == pytest.approx(-result.power_into_object_w, rel=1.0e-12, abs=1.0e-15)
 

@@ -69,9 +69,7 @@ def _grasp(
         step_s=GRASP_STEP_S,
         sample_stride=10,
     )
-    return run_scenario(
-        config, grasp_controller(params, squeeze_start_s=SQUEEZE_START_S)
-    )
+    return run_scenario(config, grasp_controller(params, squeeze_start_s=SQUEEZE_START_S))
 
 
 def test_every_stage_efficiency_lies_between_zero_and_one() -> None:
@@ -103,9 +101,7 @@ def test_chain_force_is_proportional_to_current_above_the_friction_offset() -> N
     high = force_chain(params, params.current_limit_a)
     assert high.finger_tension_n > 2.0 * low.finger_tension_n
 
-    slope = (high.finger_tension_n - low.finger_tension_n) / (
-        high.current_a - low.current_a
-    )
+    slope = (high.finger_tension_n - low.finger_tension_n) / (high.current_a - low.current_a)
     predicted = (
         params.motor.torque_constant_nm_per_a
         * params.gearbox.efficiency
@@ -128,11 +124,7 @@ def test_energy_budget_shares_are_bounded_and_sum_to_one() -> None:
     for row in budget.losses:
         assert row.energy_j >= -1.0e-12, row.name
         assert -1.0e-9 <= row.share <= 1.0, row.name
-    total = (
-        sum(row.share for row in budget.losses)
-        + budget.object_share
-        + budget.stored_share
-    )
+    total = sum(row.share for row in budget.losses) + budget.object_share + budget.stored_share
     # Twice the reported residual, so the assertion cannot sit on its own boundary: the
     # shares miss unity by exactly the residual, and a tolerance equal to it would be a
     # coin toss on the last bit.
@@ -218,13 +210,9 @@ def test_one_command_produces_different_force_distributions() -> None:
     ]
     for left in range(len(shares)):
         for right in range(left + 1, len(shares)):
-            difference = max(
-                abs(a - b)
-                for a, b in zip(shares[left], shares[right], strict=True)
-            )
+            difference = max(abs(a - b) for a, b in zip(shares[left], shares[right], strict=True))
             assert difference > 0.15, (
-                f"{summaries[left].name} against {summaries[right].name}: "
-                f"{difference:.3f}"
+                f"{summaries[left].name} against {summaries[right].name}: {difference:.3f}"
             )
 
 
@@ -396,9 +384,7 @@ def test_the_headline_summary_combines_the_speed_and_the_force_runs() -> None:
     assert summary.stall_finger_tension_n == pytest.approx(settled.finger_tension_n)
     assert summary.stall_grasp_force_n == pytest.approx(settled.total_force_n)
     assert summary.peak_motor_speed_rpm < summary.no_load_speed_rpm
-    speed_rad_s, speed_rpm = free_running_speeds(
-        params.motor, params.supply.open_circuit_voltage_v
-    )
+    speed_rad_s, speed_rpm = free_running_speeds(params.motor, params.supply.open_circuit_voltage_v)
     assert summary.no_load_speed_rpm == pytest.approx(speed_rpm)
     assert speed_rpm == pytest.approx(rad_s_to_rpm(speed_rad_s))
 

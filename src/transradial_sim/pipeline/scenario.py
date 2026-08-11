@@ -183,9 +183,7 @@ def current_controller(
         sample_period_s=sample_period_s,
         speed_limit_rad_s=speed_limit_rad_s,
     )
-    controller.set_reference(
-        reference_a if reference_a is not None else params.current_limit_a
-    )
+    controller.set_reference(reference_a if reference_a is not None else params.current_limit_a)
     return controller
 
 

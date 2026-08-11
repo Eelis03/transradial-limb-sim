@@ -113,8 +113,7 @@ def test_energy_breakdown_draws_one_bar_per_destination_in_descending_order() ->
     assert len(widths) == len(budget.losses) + 2
     assert widths == sorted(widths, reverse=True)
     expected = sorted(
-        [row.energy_j for row in budget.losses]
-        + [budget.object_work_j, budget.stored_change_j],
+        [row.energy_j for row in budget.losses] + [budget.object_work_j, budget.stored_change_j],
         reverse=True,
     )
     assert widths == pytest.approx(expected, rel=1.0e-12)
@@ -165,16 +164,10 @@ def test_published_postures_share_one_window_so_the_panels_compare() -> None:
 
         angles = tuple(float(a) for a in trace.joint_angles_rad[-1])
         origins, _, _ = joint_origins(trace.params.finger, angles)
-        drawn = [
-            line for line in axis.lines if len(line.get_xdata()) == len(origins)
-        ]
+        drawn = [line for line in axis.lines if len(line.get_xdata()) == len(origins)]
         assert len(drawn) == 1
-        assert list(drawn[0].get_xdata()) == pytest.approx(
-            [1000.0 * point[0] for point in origins]
-        )
-        assert list(drawn[0].get_ydata()) == pytest.approx(
-            [1000.0 * point[1] for point in origins]
-        )
+        assert list(drawn[0].get_xdata()) == pytest.approx([1000.0 * point[0] for point in origins])
+        assert list(drawn[0].get_ydata()) == pytest.approx([1000.0 * point[1] for point in origins])
 
 
 def test_tendon_tension_figure_marks_both_quasi_static_references() -> None:
@@ -222,8 +215,7 @@ def test_scratch_figures_still_plot_what_they_are_given() -> None:
     losses = loss_figure(budget)
     widths = [patch.get_width() for patch in losses.axes[0].containers[0].patches]
     assert widths == pytest.approx(
-        [row.energy_j for row in budget.losses]
-        + [budget.object_work_j, budget.stored_change_j],
+        [row.energy_j for row in budget.losses] + [budget.object_work_j, budget.stored_change_j],
         rel=1.0e-12,
     )
 

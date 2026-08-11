@@ -67,9 +67,7 @@ def settling_index(trace: SimulationTrace, speed_fraction: float = 0.01) -> int:
     return peak_index + int(below[0])
 
 
-def free_running_speeds(
-    motor: MotorParameters, supply_voltage_v: float
-) -> tuple[float, float]:
+def free_running_speeds(motor: MotorParameters, supply_voltage_v: float) -> tuple[float, float]:
     """Return the predicted no load speed in rad/s and in rpm at a given supply voltage."""
     speed = predicted_no_load_speed(motor, supply_voltage_v)
     return speed, rad_s_to_rpm(speed)
@@ -182,9 +180,7 @@ def performance_summary(
     params: SystemParameters = closing.params
     peak_speed = float(np.max(np.abs(closing.motor_speed_rad_s)))
     tendon_speed = peak_speed * params.tendon.drive_radius_m / params.gearbox.ratio
-    _, no_load_rpm = free_running_speeds(
-        params.motor, params.supply.open_circuit_voltage_v
-    )
+    _, no_load_rpm = free_running_speeds(params.motor, params.supply.open_circuit_voltage_v)
     settled = grasp_summary(stall)
     return PerformanceSummary(
         closing_time_s=closing_time_s(closing),

@@ -75,9 +75,7 @@ def test_current_limit_holds_under_a_reversed_adversarial_command() -> None:
     trace = run_scenario(config, ConstantDuty(duty=-1.0, sample_period_s=1.0e-4))
     trough = float(trace.current_a.min())
     overshoot_bound = (
-        ADVERSARIAL_STEP_S
-        * params.supply.open_circuit_voltage_v
-        / params.motor.inductance_h
+        ADVERSARIAL_STEP_S * params.supply.open_circuit_voltage_v / params.motor.inductance_h
     )
     assert trough >= -params.current_limit_a - overshoot_bound
 

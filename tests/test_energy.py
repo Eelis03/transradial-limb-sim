@@ -213,6 +213,4 @@ def test_the_derivative_helper_returns_the_plant_derivative() -> None:
     params = build_plant(obstacle=LARGE_CYLINDER, contact=STIFF_CONTACT)
     state = initial_state(params, (0.4, 0.5, 0.6))
     state[IDX_MOTOR_SPEED] = 120.0
-    assert state_derivative(params, state, 0.7) == evaluate_plant(
-        params, state, 0.7
-    ).derivative
+    assert state_derivative(params, state, 0.7) == evaluate_plant(params, state, 0.7).derivative

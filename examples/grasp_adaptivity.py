@@ -29,14 +29,14 @@ def main() -> None:
     summaries = []
     for name, obstacle in TEST_OBJECTS:
         config = grasp_scenario(name, obstacle, duration_s=duration, step_s=step)
-        trace = run_scenario(
-            config, grasp_controller(config.params, squeeze_start_s=squeeze)
-        )
+        trace = run_scenario(config, grasp_controller(config.params, squeeze_start_s=squeeze))
         traces.append(trace)
         summaries.append(grasp_summary(trace))
 
-    print(f"{'object':<16}{'proximal':>10}{'middle':>9}{'distal':>9}"
-          f"{'total N':>10}{'spread N':>10}{'points':>8}")
+    print(
+        f"{'object':<16}{'proximal':>10}{'middle':>9}{'distal':>9}"
+        f"{'total N':>10}{'spread N':>10}{'points':>8}"
+    )
     for summary in summaries:
         angles = ", ".join(f"{value:.1f}" for value in summary.joint_angles_deg)
         forces = summary.phalanx_forces_n
@@ -54,8 +54,8 @@ def main() -> None:
             left = summaries[first]
             right = summaries[second]
             squared = sum(
-                (a - b) ** 2 for a, b in zip(left.joint_angles_deg, right.joint_angles_deg,
-                                             strict=True)
+                (a - b) ** 2
+                for a, b in zip(left.joint_angles_deg, right.joint_angles_deg, strict=True)
             )
             distance = math.sqrt(squared / len(left.joint_angles_deg))
             print(f"  {left.name} against {right.name}: {distance:.1f}")

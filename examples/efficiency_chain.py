@@ -39,12 +39,18 @@ def main() -> None:
 
     print()
     print("measured at the settled grasp")
-    print(f"  tendon tension at the drive   {settled.drive_tension_n:8.2f} N "
-          f"(chain {chain.drive_tension_n:.2f} N)")
-    print(f"  tendon tension at the finger  {settled.finger_tension_n:8.2f} N "
-          f"(chain {chain.finger_tension_n:.2f} N)")
-    print(f"  measured capstan ratio        {settled.measured_capstan_ratio:8.4f} "
-          f"(chain {chain.stages[-1].efficiency:.4f})")
+    print(
+        f"  tendon tension at the drive   {settled.drive_tension_n:8.2f} N "
+        f"(chain {chain.drive_tension_n:.2f} N)"
+    )
+    print(
+        f"  tendon tension at the finger  {settled.finger_tension_n:8.2f} N "
+        f"(chain {chain.finger_tension_n:.2f} N)"
+    )
+    print(
+        f"  measured capstan ratio        {settled.measured_capstan_ratio:8.4f} "
+        f"(chain {chain.stages[-1].efficiency:.4f})"
+    )
     print(f"  total grasp force             {settled.total_force_n:8.2f} N")
     print(f"  fingertip force               {settled.fingertip_force_n:8.2f} N")
 
@@ -53,12 +59,18 @@ def main() -> None:
     print(f"{'destination':<28}{'energy, J':>12}{'share':>10}")
     for row in budget.losses:
         print(f"{row.name.replace('_', ' '):<28}{row.energy_j:>12.4f}{100.0 * row.share:>9.2f}%")
-    print(f"{'work on the object':<28}{budget.object_work_j:>12.4f}"
-          f"{100.0 * budget.object_share:>9.2f}%")
-    print(f"{'still stored at the end':<28}{budget.stored_change_j:>12.4f}"
-          f"{100.0 * budget.stored_share:>9.2f}%")
-    print(f"{'balance residual':<28}{budget.residual_j:>12.3e}"
-          f"{100.0 * budget.relative_residual:>9.4f}%")
+    print(
+        f"{'work on the object':<28}{budget.object_work_j:>12.4f}"
+        f"{100.0 * budget.object_share:>9.2f}%"
+    )
+    print(
+        f"{'still stored at the end':<28}{budget.stored_change_j:>12.4f}"
+        f"{100.0 * budget.stored_share:>9.2f}%"
+    )
+    print(
+        f"{'balance residual':<28}{budget.residual_j:>12.3e}"
+        f"{100.0 * budget.relative_residual:>9.4f}%"
+    )
 
     save(loss_figure(budget), "energy_budget.png", options)
 

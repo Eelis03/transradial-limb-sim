@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Transradial Limb Sim"
+abstract: >-
+  A physics simulation of transradial prosthesis actuation that follows the power
+  from a six cell battery through an H bridge, a brushed motor, a planetary
+  gearhead and a routed tendon to the fingertip, computing every link's share
+  from published component data so a drive train can be judged before it is
+  built.
+type: software
+authors:
+  - family-names: Yilmaz
+    given-names: Emre
+repository-code: "https://github.com/Eelis03/transradial-limb-sim"
+license: MIT
+version: "0.1.0"
+date-released: "2026-08-11"
+keywords:
+  - prosthetics
+  - simulation
+  - actuation
+  - biomechanics
+  - python

@@ -104,9 +104,7 @@ def test_loss_powers_are_never_negative() -> None:
     for extension in (-1.0e-4, 0.0, 1.0e-5, 1.0e-3, 5.0e-3):
         for drive_rate in (-0.2, -1.0e-4, 0.0, 1.0e-4, 0.2):
             for finger_rate in (-0.2, 0.0, 0.2):
-                state = evaluate_tendon(
-                    TENDON, extension, drive_rate, 0.0, finger_rate
-                )
+                state = evaluate_tendon(TENDON, extension, drive_rate, 0.0, finger_rate)
                 assert state.friction_power_w >= -1.0e-18
                 assert state.damper_power_w >= -1.0e-18
 
@@ -144,9 +142,7 @@ def test_pulling_costs_more_than_paying_out() -> None:
     assert pulling.drive_tension_n > pulling.finger_tension_n
     assert paying_out.drive_tension_n < paying_out.finger_tension_n
     ratio = capstan_ratio(TENDON.friction_coefficient, TENDON.wrap_angle_rad)
-    assert pulling.finger_tension_n / pulling.drive_tension_n == pytest.approx(
-        ratio, rel=1.0e-6
-    )
+    assert pulling.finger_tension_n / pulling.drive_tension_n == pytest.approx(ratio, rel=1.0e-6)
 
 
 def test_routing_rejects_a_negative_wrap_angle() -> None:
@@ -177,9 +173,7 @@ def test_stick_band_keeps_the_full_loss_when_the_cord_has_stopped() -> None:
     crawl = 0.1 * TENDON.stick_velocity_m_per_s
     settled = evaluate_tendon(TENDON, 5.0e-3, crawl, 0.0, 0.0, impending_direction=1.0)
     ratio = capstan_ratio(TENDON.friction_coefficient, TENDON.wrap_angle_rad)
-    assert settled.finger_tension_n / settled.drive_tension_n == pytest.approx(
-        ratio, rel=1.0e-9
-    )
+    assert settled.finger_tension_n / settled.drive_tension_n == pytest.approx(ratio, rel=1.0e-9)
     assert settled.friction_power_w >= 0.0
 
 

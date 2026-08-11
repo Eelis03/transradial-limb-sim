@@ -32,11 +32,7 @@ def test_every_example_is_listed() -> None:
 
     Without this the integration tier would silently stop covering a new example.
     """
-    present = {
-        path.name
-        for path in EXAMPLES.glob("*.py")
-        if not path.name.startswith("_")
-    }
+    present = {path.name for path in EXAMPLES.glob("*.py") if not path.name.startswith("_")}
     assert present == set(SCRIPTS)
 
 

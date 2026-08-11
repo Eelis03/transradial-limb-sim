@@ -68,17 +68,13 @@ def test_speed_constant_matches_catalogue() -> None:
 def test_no_load_speed_matches_catalogue() -> None:
     """The steady state unloaded speed reproduces the catalogue no load speed."""
     predicted = predicted_no_load_speed(MOTOR, CATALOGUE.nominal_voltage_v)
-    assert predicted == pytest.approx(
-        CATALOGUE.no_load_speed_rad_s, rel=CATALOGUE_TOLERANCE
-    )
+    assert predicted == pytest.approx(CATALOGUE.no_load_speed_rad_s, rel=CATALOGUE_TOLERANCE)
 
 
 def test_no_load_current_matches_catalogue() -> None:
     """The steady state unloaded current reproduces the catalogue no load current."""
     predicted = predicted_no_load_current(MOTOR, CATALOGUE.nominal_voltage_v)
-    assert predicted == pytest.approx(
-        CATALOGUE.no_load_current_a, rel=CATALOGUE_TOLERANCE
-    )
+    assert predicted == pytest.approx(CATALOGUE.no_load_current_a, rel=CATALOGUE_TOLERANCE)
 
 
 def test_stall_torque_matches_catalogue() -> None:
@@ -131,19 +127,13 @@ def test_holding_voltage_zeroes_the_current_derivative() -> None:
 
     for current, speed in ((1.0, 100.0), (-0.5, -300.0), (0.0, 0.0)):
         voltage = holding_voltage(MOTOR, current, speed)
-        assert current_derivative(MOTOR, voltage, current, speed) == pytest.approx(
-            0.0, abs=1.0e-9
-        )
+        assert current_derivative(MOTOR, voltage, current, speed) == pytest.approx(0.0, abs=1.0e-9)
 
 
 def test_electromagnetic_torque_is_linear_in_current() -> None:
     """Air gap torque is proportional to current with the catalogue torque constant."""
-    assert electromagnetic_torque(MOTOR, 2.0) == pytest.approx(
-        2.0 * MOTOR.torque_constant_nm_per_a
-    )
-    assert electromagnetic_torque(MOTOR, -1.0) == pytest.approx(
-        -MOTOR.torque_constant_nm_per_a
-    )
+    assert electromagnetic_torque(MOTOR, 2.0) == pytest.approx(2.0 * MOTOR.torque_constant_nm_per_a)
+    assert electromagnetic_torque(MOTOR, -1.0) == pytest.approx(-MOTOR.torque_constant_nm_per_a)
 
 
 def test_gearbox_sets_the_usable_current_not_the_motor() -> None:

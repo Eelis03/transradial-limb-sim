@@ -257,9 +257,7 @@ def evaluate_tendon(
     damper_power = (finger_tension - spring_force) * extension_rate
 
     if abs(drive_velocity_m_per_s) >= tendon.stick_velocity_m_per_s:
-        direction = smooth_sign(
-            drive_velocity_m_per_s, tendon.velocity_regularisation_m_per_s
-        )
+        direction = smooth_sign(drive_velocity_m_per_s, tendon.velocity_regularisation_m_per_s)
     else:
         direction = impending_direction
         if direction * drive_velocity_m_per_s < 0.0:

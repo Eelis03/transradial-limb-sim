@@ -46,19 +46,27 @@ def main() -> None:
     _, no_load_rpm = free_running_speeds(params.motor, params.supply.open_circuit_voltage_v)
     final = trace.joint_angles_rad[-1]
 
-    print(f"supply {params.supply.open_circuit_voltage_v:.1f} V, current limit "
-          f"{params.current_limit_a:.3f} A")
+    print(
+        f"supply {params.supply.open_circuit_voltage_v:.1f} V, current limit "
+        f"{params.current_limit_a:.3f} A"
+    )
     print(f"closing time to 95 percent of travel   {closing_time_s(trace):.3f} s")
     print(f"peak motor speed                       {rad_s_to_rpm(peak_speed):.0f} rpm")
     print(f"motor no load speed at this supply     {no_load_rpm:.0f} rpm")
-    print(f"gearbox recommended input speed limit  "
-          f"{rad_s_to_rpm(params.gearbox.max_input_speed_rad_s):.0f} rpm")
+    print(
+        f"gearbox recommended input speed limit  "
+        f"{rad_s_to_rpm(params.gearbox.max_input_speed_rad_s):.0f} rpm"
+    )
     print(f"peak tendon speed                      {1.0e3 * tendon_speed:.1f} mm/s")
     print(f"peak fingertip speed                   {1.0e3 * peak_tip_speed(trace):.0f} mm/s")
-    print("final joint angles, deg                "
-          + ", ".join(f"{math.degrees(float(a)):.1f}" for a in final))
-    print(f"battery energy for one closure         "
-          f"{trace.final_accumulator('battery_energy_j'):.3f} J")
+    print(
+        "final joint angles, deg                "
+        + ", ".join(f"{math.degrees(float(a)):.1f}" for a in final)
+    )
+    print(
+        f"battery energy for one closure         "
+        f"{trace.final_accumulator('battery_energy_j'):.3f} J"
+    )
 
     save(closing_figure(trace), "closing.png", options)
 
